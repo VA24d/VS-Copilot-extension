@@ -39,6 +39,7 @@ export function registerUsageChatParticipant(context: vscode.ExtensionContext, d
 			promptText,
 			responseText,
 			attachmentsJson: '[]',
+			copilotCredits: undefined,
 			schemaVersionSeen: 0
 		});
 		db.flush();

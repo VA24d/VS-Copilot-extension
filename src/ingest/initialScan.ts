@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import { discoverWorkspaceChatSessionFiles } from '../discovery/sessionFileIndex';
 import type { UsageDb } from '../storage/db';
-import { ingestSessionFile, type IngestSummary } from './ingestor';
+import { ingestSessionFile, type IngestOptions, type IngestSummary } from './ingestor';
 
 /** One-time (or manually re-triggered) backfill over every discovered session file, wrapped in withProgress. */
-export async function runInitialScan(db: UsageDb, workspaceStorageDir: string): Promise<IngestSummary> {
+export async function runInitialScan(db: UsageDb, workspaceStorageDir: string, options?: IngestOptions): Promise<IngestSummary> {
 	return vscode.window.withProgress(
 		{
 			location: vscode.ProgressLocation.Notification,
@@ -13,15 +13,17 @@ export async function runInitialScan(db: UsageDb, workspaceStorageDir: string): 
 		},
 		async (progress) => {
 			const files = discoverWorkspaceChatSessionFiles(workspaceStorageDir);
-			const total: IngestSummary = { filesScanned: 0, requestsInserted: 0, requestsSkippedExisting: 0, filesWithErrors: 0 };
+			const total: IngestSummary = { filesScanned: 0, requestsInserted: 0, requestsSkippedExisting: 0, filesWithErrors: 0, requestsExcluded: 0, requestsRedacted: 0 };
 
 			let done = 0;
 			for (const file of files) {
-				const summary = ingestSessionFile(db, file);
+				const summary = ingestSessionFile(db, file, options);
 				total.filesScanned += summary.filesScanned;
 				total.requestsInserted += summary.requestsInserted;
 				total.requestsSkippedExisting += summary.requestsSkippedExisting;
 				total.filesWithErrors += summary.filesWithErrors;
+				total.requestsExcluded += summary.requestsExcluded;
+				total.requestsRedacted += summary.requestsRedacted;
 
 				done++;
 				if (files.length > 0) {

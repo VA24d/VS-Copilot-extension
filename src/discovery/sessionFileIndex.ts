@@ -2,10 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 /**
- * Discovers `workspaceStorage/<hash>/chatSessions/<id>.json` files under the
- * VS Code `User` directory. MVP scope only walks the workspace-scoped chat
- * session snapshots (see plan §Key risks 1) — `emptyWindowChatSessions/*.jsonl`
- * is a fast-follow.
+ * Discovers `workspaceStorage/<hash>/chatSessions/<id>.{json,jsonl}` files
+ * under the VS Code `User` directory. Confirmed via direct inspection of a
+ * real VS Code 1.130 insider profile that session files are now written as
+ * append-only `.jsonl` patch logs, not `.json` full snapshots — both
+ * extensions are matched defensively in case older/newer builds differ.
  */
 export function discoverWorkspaceChatSessionFiles(workspaceStorageDir: string): string[] {
 	const results: string[] = [];
@@ -29,7 +30,7 @@ export function discoverWorkspaceChatSessionFiles(workspaceStorageDir: string): 
 			continue;
 		}
 		for (const file of sessionFiles) {
-			if (file.isFile() && file.name.endsWith('.json')) {
+			if (file.isFile() && (file.name.endsWith('.json') || file.name.endsWith('.jsonl'))) {
 				results.push(path.join(chatSessionsDir, file.name));
 			}
 		}

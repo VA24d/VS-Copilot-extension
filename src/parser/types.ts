@@ -19,6 +19,10 @@ export interface RawChatResponsePart {
 		[key: string]: unknown;
 	};
 	kind?: string;
+	uri?: {
+		fsPath?: string;
+		[key: string]: unknown;
+	};
 	[key: string]: unknown;
 }
 
@@ -42,6 +46,7 @@ export interface RawChatRequest {
 	response?: RawChatResponsePart[];
 	result?: unknown;
 	variableData?: RawChatVariableData;
+	copilotCredits?: number;
 	[key: string]: unknown;
 }
 
@@ -63,6 +68,7 @@ export interface ParsedRequest {
 	modelId: string | undefined;
 	slashCommand: string | undefined;
 	attachmentFsPaths: string[];
+	copilotCredits: number | undefined;
 	schemaVersionSeen: number;
 }
 

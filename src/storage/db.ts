@@ -18,6 +18,7 @@ export interface RequestRow {
 	promptText: string;
 	responseText: string;
 	attachmentsJson: string;
+	copilotCredits: number | undefined;
 	schemaVersionSeen: number;
 }
 
@@ -59,7 +60,36 @@ export class UsageDb {
 			db = new SQL.Database();
 		}
 
+		// Read the on-disk schema version BEFORE running DDL/ALTER — needed to
+		// decide whether ingestion_state must be cleared below (a v2 build
+		// shipped earlier this session already added copilot_credits and set
+		// user_version=2 on real DBs, but never backfilled existing rows, so
+		// detecting "did ALTER just succeed" alone would miss those DBs).
+		const versionStmt = db.prepare(`PRAGMA user_version`);
+		versionStmt.step();
+		const onDiskVersion = Number((versionStmt.getAsObject() as Record<string, unknown>).user_version ?? 0);
+		versionStmt.free();
+
 		db.run(DDL);
+		// Guarded migration for DBs created before copilot_credits existed.
+		// CREATE TABLE IF NOT EXISTS above doesn't add columns to an already-
+		// existing table, so ALTER TABLE is required; SQLite has no "ADD COLUMN
+		// IF NOT EXISTS", so the duplicate-column error is simply swallowed on
+		// DBs that already have it (including brand-new ones, since the column
+		// is also in the DDL above).
+		try {
+			db.run(`ALTER TABLE requests ADD COLUMN copilot_credits REAL`);
+		} catch {
+			// column already exists — expected on every run after the first migration.
+		}
+		if (onDiskVersion < SCHEMA_USER_VERSION) {
+			// Existing rows (inserted before this column existed, or before the
+			// backfill upsert existed) have copilot_credits = NULL and would stay
+			// that way forever otherwise. Clearing the ingestion cursor makes the
+			// next scan re-parse every already-seen file and backfill
+			// copilot_credits via insertRequest's ON CONFLICT upsert below.
+			db.run(`DELETE FROM ingestion_state`);
+		}
 		db.run(`PRAGMA user_version = ${SCHEMA_USER_VERSION};`);
 
 		return new UsageDb(SQL, db, dbFilePath);
@@ -82,14 +112,17 @@ export class UsageDb {
 	/** Idempotent insert. Returns true if a new row was written, false if it already existed. */
 	insertRequest(row: RequestRow): boolean {
 		const stmt = this.db.prepare(`
-			INSERT OR IGNORE INTO requests
+			INSERT INTO requests
 				(session_id, request_id, source, workspace_hash, workspace_path, timestamp,
 				 category, language, model_id, agent_id, agent_name, prompt_text, response_text,
-				 attachments_json, schema_version_seen, created_at)
+				 attachments_json, copilot_credits, schema_version_seen, created_at)
 			VALUES
 				($sessionId, $requestId, $source, $workspaceHash, $workspacePath, $timestamp,
 				 $category, $language, $modelId, $agentId, $agentName, $promptText, $responseText,
-				 $attachmentsJson, $schemaVersionSeen, $createdAt)
+				 $attachmentsJson, $copilotCredits, $schemaVersionSeen, $createdAt)
+			ON CONFLICT(session_id, request_id, source) DO UPDATE SET
+				copilot_credits = excluded.copilot_credits
+			WHERE requests.copilot_credits IS NULL AND excluded.copilot_credits IS NOT NULL
 		`);
 		try {
 			stmt.run({
@@ -107,9 +140,14 @@ export class UsageDb {
 				$promptText: row.promptText,
 				$responseText: row.responseText,
 				$attachmentsJson: row.attachmentsJson,
+				$copilotCredits: row.copilotCredits ?? null,
 				$schemaVersionSeen: row.schemaVersionSeen,
 				$createdAt: Date.now()
 			});
+			// Rows modified counts both a fresh insert and a credits backfill
+			// update as "modified" — both are legitimately new information for
+			// this row, so the caller's inserted/skipped accounting stays
+			// close enough (it's a diagnostic count, not used for correctness).
 			return this.db.getRowsModified() > 0;
 		} finally {
 			stmt.free();
@@ -212,9 +250,83 @@ export class UsageDb {
 		`).map(r => ({ day: String(r.day), count: Number(r.count) }));
 	}
 
+	/** Total Copilot cost units (`copilotCredits`, as reported by VS Code per-request) across all logged requests. */
+	totalCredits(): number {
+		return this.scalar(`SELECT COALESCE(SUM(copilot_credits), 0) AS c FROM requests`);
+	}
+
+	/** Total cost units since a given epoch ms (e.g. start of current calendar month). */
+	creditsSince(epochMs: number): number {
+		const stmt = this.db.prepare(`SELECT COALESCE(SUM(copilot_credits), 0) AS c FROM requests WHERE timestamp >= $since`);
+		try {
+			stmt.bind({ $since: epochMs });
+			stmt.step();
+			return Number((stmt.getAsObject() as Record<string, unknown>).c ?? 0);
+		} finally {
+			stmt.free();
+		}
+	}
+
+	/** Daily cost-unit trend for the last N days (companion to groupByDay's request-count trend). */
+	creditsByDay(days: number): Array<{ day: string; credits: number }> {
+		const since = Date.now() - days * 24 * 60 * 60 * 1000;
+		return this.rows(`
+			SELECT strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch') AS day, COALESCE(SUM(copilot_credits), 0) AS credits
+			FROM requests
+			WHERE timestamp >= ${since}
+			GROUP BY day
+			ORDER BY day ASC
+		`).map(r => ({ day: String(r.day), credits: Number(r.credits) }));
+	}
+
+	/** (category, modelId) pairs for every logged request — feeds the model-fit heuristic (computed in JS, not stored, so the heuristic can evolve without a migration). */
+	listCategoryModelPairs(): Array<{ category: string; modelId: string }> {
+		return this.rows(`SELECT category, COALESCE(model_id, '') AS modelId FROM requests`)
+			.map(r => ({ category: String(r.category ?? 'other'), modelId: String(r.modelId ?? '') }));
+	}
+
+	/** Category counts, for the time-savings heuristic (see heuristics/timeSavings.ts). */
+	categoryCounts(): Array<{ category: string; count: number }> {
+		return this.groupByCategory();
+	}
+
 	purgeAll(): void {
 		this.db.run(`DELETE FROM requests`);
 		this.db.run(`DELETE FROM ingestion_state`);
+	}
+
+	/**
+	 * Metadata-only rows for CSV/audit export — deliberately excludes
+	 * prompt_text/response_text so an exported file can't leak raw prompt
+	 * content by default (compliance exports should be safe to hand to an
+	 * auditor without a second review pass).
+	 */
+	listRequestsForExport(): Array<{
+		timestamp: number;
+		category: string;
+		language: string;
+		modelId: string;
+		agentId: string;
+		source: string;
+		workspaceHash: string;
+	}> {
+		return this.rows(`
+			SELECT timestamp, category, language,
+			       COALESCE(model_id, '') AS modelId,
+			       COALESCE(agent_id, '') AS agentId,
+			       source,
+			       COALESCE(workspace_hash, '') AS workspaceHash
+			FROM requests
+			ORDER BY timestamp ASC
+		`).map(r => ({
+			timestamp: Number(r.timestamp ?? 0),
+			category: String(r.category ?? 'other'),
+			language: String(r.language ?? 'unknown'),
+			modelId: String(r.modelId ?? ''),
+			agentId: String(r.agentId ?? ''),
+			source: String(r.source ?? ''),
+			workspaceHash: String(r.workspaceHash ?? '')
+		}));
 	}
 
 	applyRetention(retentionDays: number): number {

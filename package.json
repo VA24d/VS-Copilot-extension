@@ -2,10 +2,14 @@
   "name": "copilot-usage-logger",
   "displayName": "Lloyds Banking Group — Copilot Usage Logger",
   "description": "Local-only logging and classification of your Copilot Chat usage, with a dashboard by category, language, model, and day.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "local-dev",
   "private": true,
   "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VA24d/VS-Copilot-extension.git"
+  },
   "engines": {
     "vscode": "^1.93.0"
   },
@@ -23,12 +27,44 @@
         "title": "Copilot Usage: Open Dashboard"
       },
       {
+        "command": "usageLogger.openCompanyDashboard",
+        "title": "Copilot Usage: Open Company-Wide Dashboard"
+      },
+      {
         "command": "usageLogger.rescanHistory",
         "title": "Copilot Usage: Rescan Chat History"
       },
       {
         "command": "usageLogger.purgeData",
         "title": "Copilot Usage: Purge All Logged Data"
+      },
+      {
+        "command": "usageLogger.sendReportNow",
+        "title": "Copilot Usage: Send Company-Wide Report Now"
+      },
+      {
+        "command": "usageLogger.setReportingApiKey",
+        "title": "Copilot Usage: Set Reporting API Key"
+      },
+      {
+        "command": "usageLogger.clearReportingApiKey",
+        "title": "Copilot Usage: Clear Reporting API Key"
+      },
+      {
+        "command": "usageLogger.setMongoConnectionString",
+        "title": "Copilot Usage: Set MongoDB Connection String"
+      },
+      {
+        "command": "usageLogger.clearMongoConnectionString",
+        "title": "Copilot Usage: Clear MongoDB Connection String"
+      },
+      {
+        "command": "usageLogger.togglePrivateMode",
+        "title": "Copilot Usage: Toggle Private Mode"
+      },
+      {
+        "command": "usageLogger.exportAuditCsv",
+        "title": "Copilot Usage: Export Audit CSV"
       }
     ],
     "chatParticipants": [
@@ -57,6 +93,77 @@
           "type": "number",
           "default": 0,
           "description": "Delete logged requests older than this many days. 0 = keep forever."
+        },
+        "usageLogger.enableCompanyWideReporting": {
+          "type": "boolean",
+          "default": false,
+          "description": "Opt-in: periodically send an AGGREGATE-ONLY usage report (counts by category/language/model/day — never prompt or response text) to usageLogger.reportingEndpointUrl."
+        },
+        "usageLogger.reportingEndpointUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Internal endpoint that receives aggregate-only usage reports. Must be https:// unless usageLogger.allowInsecureHttp is set."
+        },
+        "usageLogger.reportingIntervalMinutes": {
+          "type": "number",
+          "default": 60,
+          "minimum": 5,
+          "description": "How often to send the company-wide report, in minutes."
+        },
+        "usageLogger.allowInsecureHttp": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow usageLogger.reportingEndpointUrl to be plain http:// instead of https://. Only enable for a trusted, isolated intranet endpoint."
+        },
+        "usageLogger.reportingTransport": {
+          "type": "string",
+          "enum": [
+            "http",
+            "mongodb"
+          ],
+          "default": "http",
+          "description": "Transport for company-wide reporting: an HTTPS endpoint, or a local/internal MongoDB collection."
+        },
+        "usageLogger.mongoDatabase": {
+          "type": "string",
+          "default": "",
+          "description": "MongoDB database name for company-wide reporting (used when usageLogger.reportingTransport is 'mongodb'). Connection string is set separately via 'Copilot Usage: Set MongoDB Connection String' (stored securely, not here)."
+        },
+        "usageLogger.mongoCollection": {
+          "type": "string",
+          "default": "",
+          "description": "MongoDB collection name for company-wide reporting (used when usageLogger.reportingTransport is 'mongodb')."
+        },
+        "usageLogger.privateMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Pause all Copilot usage logging (passive capture and the @usage participant still run, but nothing is written to the local database). Toggle via 'Copilot Usage: Toggle Private Mode'."
+        },
+        "usageLogger.excludedPathGlobs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Glob patterns (e.g. '**/secrets/**', '**/*.pem'). Any Copilot request that has an attached file matching one of these is skipped entirely — not even its metadata is logged."
+        },
+        "usageLogger.sensitiveLabelKeywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Keywords (e.g. 'CONFIDENTIAL', 'RESTRICTED') checked against prompt/response text and attached file paths. Matching requests still have metadata (category/language/model/timestamp) logged, but prompt and response text are redacted before being stored locally. NOTE: this is a local-storage control only — it cannot prevent data from being sent to the Copilot model itself. Use GitHub Copilot's org-level Content Exclusion policy for that."
+        },
+        "usageLogger.monthlyCreditLimit": {
+          "type": "number",
+          "default": 0,
+          "description": "Optional monthly Copilot cost-unit budget to track against on the dashboard (based on the per-request 'copilotCredits' value VS Code reports — a relative cost signal, not guaranteed to exactly match GitHub's official premium-request billing meter). 0 = don't show a limit."
+        },
+        "usageLogger.timeSavingsMinutesPerCategory": {
+          "type": "object",
+          "default": {},
+          "description": "Override the default estimated-minutes-saved-per-request values (by category, e.g. {\"debug-fix\": 20}) used for the dashboard's 'Estimated time saved' card. This is always a rough heuristic estimate, never a measurement — leave empty to use the built-in defaults."
         }
       }
     }
@@ -74,17 +181,18 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@types/vscode": "^1.93.0",
     "@types/sql.js": "^1.4.9",
+    "@types/vscode": "^1.93.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
+    "@vscode/vsce": "^2.27.0",
     "esbuild": "^0.21.0",
     "eslint": "^8.57.0",
-    "typescript": "^5.4.0",
-    "@vscode/vsce": "^2.27.0"
+    "typescript": "^5.4.0"
   },
   "dependencies": {
     "chokidar": "^3.6.0",
+    "mongodb": "^6.21.0",
     "sql.js": "^1.10.3"
   }
 }

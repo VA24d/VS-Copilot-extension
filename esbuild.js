@@ -49,7 +49,23 @@ async function main() {
 		sourcesContent: false,
 		platform: 'node',
 		outfile: 'dist/extension.js',
-		external: ['vscode', 'fsevents'],
+		// mongodb's driver has several optional native/cloud-auth peer deps that
+		// aren't installed (kerberos, zstd/snappy compression, AWS/GCP auth
+		// helpers, client-side field-level encryption). Mark them external so
+		// esbuild doesn't fail trying to resolve them — they're only required
+		// at runtime if that specific optional feature is actually used.
+		external: [
+			'vscode',
+			'fsevents',
+			'kerberos',
+			'@mongodb-js/zstd',
+			'snappy',
+			'aws4',
+			'mongodb-client-encryption',
+			'@aws-sdk/credential-providers',
+			'gcp-metadata',
+			'socks'
+		],
 		logLevel: 'silent',
 		plugins: [
 			copyWasmPlugin,

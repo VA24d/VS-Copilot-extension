@@ -1,4 +1,4 @@
-export const SCHEMA_USER_VERSION = 1;
+export const SCHEMA_USER_VERSION = 3;
 
 export const DDL = `
 CREATE TABLE IF NOT EXISTS requests (
@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS requests (
   prompt_text TEXT,
   response_text TEXT,
   attachments_json TEXT,
+  copilot_credits REAL,
   schema_version_seen INTEGER,
   created_at INTEGER,
   UNIQUE(session_id, request_id, source)

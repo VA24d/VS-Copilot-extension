@@ -1,4 +1,6 @@
 import * as fs from 'fs';
+import * as path from 'path';
+import { replayPatchLogFile } from './patchLogParser';
 import type { ParseResult, ParsedRequest, RawChatRequest, RawChatSession } from './types';
 
 /**
@@ -23,6 +25,30 @@ export function parseSessionFile(filePath: string): ParseResult {
 	}
 
 	return parseSession(session);
+}
+
+/**
+ * Confirmed against real VS Code 1.130 insider session files: chat session
+ * storage now uses the append-only `.jsonl` patch-log format (kind:0/1/2)
+ * for BOTH `workspaceStorage/<hash>/chatSessions/` and
+ * `globalStorage/emptyWindowChatSessions/` — not just full `.json`
+ * snapshots. Dispatches on file extension so both shapes are supported.
+ */
+export function parseChatSessionFile(filePath: string): ParseResult {
+	if (path.extname(filePath).toLowerCase() === '.jsonl') {
+		const { session, errorCount, lastError } = replayPatchLogFile(filePath);
+		if (!session) {
+			return { requests: [], schemaVersionSeen: 0, errorCount: errorCount || 1, lastError: lastError ?? 'no kind:0 snapshot found' };
+		}
+		const result = parseSession(session as RawChatSession);
+		return {
+			requests: result.requests,
+			schemaVersionSeen: result.schemaVersionSeen,
+			errorCount: result.errorCount + errorCount,
+			lastError: result.lastError ?? lastError
+		};
+	}
+	return parseSessionFile(filePath);
 }
 
 export function parseSession(session: RawChatSession): ParseResult {
@@ -68,7 +94,11 @@ function parseRequest(sessionId: string, rawRequest: RawChatRequest, schemaVersi
 	const slashCommand = typeof rawRequest.slashCommand?.name === 'string' ? rawRequest.slashCommand.name : undefined;
 
 	const responseText = extractResponseText(rawRequest.response);
-	const attachmentFsPaths = extractAttachmentPaths(rawRequest.variableData);
+	const attachmentFsPaths = [
+		...extractAttachmentPaths(rawRequest.variableData),
+		...extractResponseFilePaths(rawRequest.response)
+	];
+	const copilotCredits = typeof rawRequest.copilotCredits === 'number' ? rawRequest.copilotCredits : undefined;
 
 	return {
 		sessionId,
@@ -80,6 +110,7 @@ function parseRequest(sessionId: string, rawRequest: RawChatRequest, schemaVersi
 		modelId,
 		slashCommand,
 		attachmentFsPaths,
+		copilotCredits,
 		schemaVersionSeen
 	};
 }
@@ -90,7 +121,15 @@ function extractResponseText(response: RawChatRequest['response']): string {
 	}
 	const chunks: string[] = [];
 	for (const part of response) {
-		if (part && typeof part === 'object' && typeof part.value?.value === 'string') {
+		if (!part || typeof part !== 'object' || part.kind) {
+			continue;
+		}
+		// Confirmed real shape: kind-less markdown parts have `value` as a plain
+		// string (`{ value: "...", supportThemeIcons: ... }`), not the nested
+		// `{ value: { value: "..." } }` originally assumed — handle both defensively.
+		if (typeof part.value === 'string') {
+			chunks.push(part.value);
+		} else if (typeof part.value?.value === 'string') {
 			chunks.push(part.value.value);
 		}
 	}
@@ -105,6 +144,31 @@ function extractAttachmentPaths(variableData: RawChatRequest['variableData']): s
 	for (const variable of variableData.variables) {
 		if (variable && typeof variable.fsPath === 'string') {
 			paths.push(variable.fsPath);
+		}
+	}
+	return paths;
+}
+
+/**
+ * In agent mode, most real code changes happen via tool-call response parts
+ * (`textEditGroup` for edits actually applied, `codeblockUri` for files
+ * shown/referenced) rather than markdown fenced code blocks — confirmed
+ * against real session data, where `variableData.variables` is frequently
+ * empty. These carry the actual file being touched at `part.uri.fsPath` and
+ * are a much stronger language signal than fenced blocks for agent-mode
+ * requests.
+ */
+function extractResponseFilePaths(response: RawChatRequest['response']): string[] {
+	if (!Array.isArray(response)) {
+		return [];
+	}
+	const paths: string[] = [];
+	for (const part of response) {
+		if (!part || typeof part !== 'object') {
+			continue;
+		}
+		if ((part.kind === 'textEditGroup' || part.kind === 'codeblockUri') && typeof part.uri?.fsPath === 'string') {
+			paths.push(part.uri.fsPath);
 		}
 	}
 	return paths;
