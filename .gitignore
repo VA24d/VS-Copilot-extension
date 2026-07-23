@@ -1,0 +1,6 @@
+.copilot-specs-cache/
+node_modules
+dist
+out
+*.vsix
+.vscode-test
