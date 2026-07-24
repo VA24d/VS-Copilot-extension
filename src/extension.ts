@@ -6,6 +6,7 @@ import { ingestSessionFile, type IngestOptions } from './ingest/ingestor';
 import { runInitialScan } from './ingest/initialScan';
 import { registerUsageChatParticipant } from './participant/usageChatParticipant';
 import { CompanyDashboardPanel } from './reporting/companyDashboardPanel';
+import { syncActualCreditsUsed } from './reporting/creditsSync';
 import { ReportingService } from './reporting/reportingService';
 import { UsageDb } from './storage/db';
 import { DashboardPanel } from './ui/dashboardPanel';
@@ -50,7 +51,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}
 	context.subscriptions.push({ dispose: () => db.dispose() });
 
-	const statusBar = new UsageStatusBar(db);
+	const statusBar = new UsageStatusBar(db, context);
 	context.subscriptions.push(statusBar);
 
 	let flushTimer: NodeJS.Timeout | undefined;
@@ -128,6 +129,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					DashboardPanel.currentPanel.refresh();
 				}
 				outputChannel.appendLine(`Private mode off — caught up: ${summary.requestsInserted} request(s) logged.`);
+			}
+		}),
+		vscode.commands.registerCommand('usageLogger.syncActualCredits', async () => {
+			await syncActualCreditsUsed(context, db);
+			statusBar.refresh();
+			if (DashboardPanel.currentPanel) {
+				DashboardPanel.currentPanel.refresh();
 			}
 		}),
 		vscode.commands.registerCommand('usageLogger.exportAuditCsv', async () => {

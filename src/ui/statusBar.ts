@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { getOtherDevicesCreditsThisMonth, getSyncStateThisMonth } from '../reporting/creditsSync';
 import type { UsageDb } from '../storage/db';
 
 /** StatusBarItem showing today's request count, updated after each ingest batch. Click opens the dashboard. */
@@ -6,7 +7,7 @@ export class UsageStatusBar implements vscode.Disposable {
 	private readonly item: vscode.StatusBarItem;
 	private privateMode = false;
 
-	constructor(private readonly db: UsageDb) {
+	constructor(private readonly db: UsageDb, private readonly context: vscode.ExtensionContext) {
 		this.item = vscode.window.createStatusBarItem('usageLogger.statusBar', vscode.StatusBarAlignment.Right, 100);
 		this.item.name = 'Copilot Usage Logger';
 		this.item.command = 'usageLogger.openDashboard';
@@ -46,6 +47,11 @@ export class UsageStatusBar implements vscode.Disposable {
 		if (budget) {
 			md.appendMarkdown(`- Daily budget: \`${budget.bar}\` ${budget.pct}% (${Math.round(creditsToday).toLocaleString()} / ${Math.round(budget.dailyBudget).toLocaleString()})\n`);
 			md.appendMarkdown(`- Remaining today: **${Math.round(budget.remainingToday).toLocaleString()}**\n`);
+			if (budget.otherDevicesCredits > 0) {
+				const syncedAt = budget.syncedAt ? new Date(budget.syncedAt).toLocaleString() : 'unknown';
+				md.appendMarkdown(`- Includes ${Math.round(budget.otherDevicesCredits).toLocaleString()} synced from other devices (as of ${syncedAt})\n`);
+			}
+			md.appendMarkdown(`- [Sync credits used on other devices](command:usageLogger.syncActualCredits)\n`);
 		} else {
 			md.appendMarkdown(`- Daily budget: not set (\`usageLogger.monthlyCreditLimit\`)\n`);
 		}
@@ -55,8 +61,13 @@ export class UsageStatusBar implements vscode.Disposable {
 		return md;
 	}
 
-	/** Mirrors dashboardPanel's daily-budget math: remaining monthly credits ÷ remaining days in month. */
-	private dailyBudgetInfo(todayStartMs: number, creditsToday: number): { dailyBudget: number; remainingToday: number; pct: number; bar: string } | null {
+	/**
+	 * Mirrors dashboardPanel's daily-budget math: remaining monthly credits ÷ remaining days in month.
+	 * `creditsThisMonth`/`creditsBeforeToday` fold in any manually-synced other-devices credits (see
+	 * ../reporting/creditsSync.ts), since this extension only observes local Copilot activity and a
+	 * Business/Enterprise seat's quota is shared across every device the account uses.
+	 */
+	private dailyBudgetInfo(todayStartMs: number, creditsToday: number): { dailyBudget: number; remainingToday: number; pct: number; bar: string; otherDevicesCredits: number; syncedAt: number | undefined } | null {
 		const monthlyCreditLimit = vscode.workspace.getConfiguration('usageLogger').get<number>('monthlyCreditLimit', 0);
 		if (!monthlyCreditLimit || monthlyCreditLimit <= 0) {
 			return null;
@@ -65,7 +76,9 @@ export class UsageStatusBar implements vscode.Disposable {
 		const startOfMonth = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
 		const daysInMonth = new Date(todayStart.getFullYear(), todayStart.getMonth() + 1, 0).getDate();
 		const remainingDaysInMonth = daysInMonth - todayStart.getDate() + 1;
-		const creditsThisMonth = this.db.creditsSince(startOfMonth.getTime());
+		const otherDevicesCredits = getOtherDevicesCreditsThisMonth(this.context);
+		const syncedAt = getSyncStateThisMonth(this.context)?.syncedAt;
+		const creditsThisMonth = this.db.creditsSince(startOfMonth.getTime()) + otherDevicesCredits;
 		const creditsBeforeToday = Math.max(0, creditsThisMonth - creditsToday);
 		// dailyBudget = today's even share of what's left, computed BEFORE today's own spend is deducted —
 		// otherwise today's usage gets divided into the pool and then subtracted again below (double-counted).
@@ -74,7 +87,7 @@ export class UsageStatusBar implements vscode.Disposable {
 		const pct = dailyBudget > 0 ? Math.min(100, Math.round((creditsToday / dailyBudget) * 100)) : (creditsToday > 0 ? 100 : 0);
 		const filled = Math.round(pct / 10);
 		const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
-		return { dailyBudget, remainingToday, pct, bar };
+		return { dailyBudget, remainingToday, pct, bar, otherDevicesCredits, syncedAt };
 	}
 
 	dispose(): void {

@@ -2,6 +2,7 @@ import * as os from 'os';
 import * as vscode from 'vscode';
 import { summarizeModelFit } from '../heuristics/modelFit';
 import { DEFAULT_MINUTES_SAVED_PER_CATEGORY, estimateTimeSavings } from '../heuristics/timeSavings';
+import { getOtherDevicesCreditsThisMonth, getSyncStateThisMonth, syncActualCreditsUsed } from '../reporting/creditsSync';
 import type { UsageDb } from '../storage/db';
 
 /** WebviewPanel host for the usage dashboard. Posts aggregate query results; rendering (inline SVG bars) happens in the webview script. */
@@ -11,7 +12,7 @@ export class DashboardPanel {
 	private disposed = false;
 	private windowDays = 30;
 
-	private constructor(panel: vscode.WebviewPanel, private readonly db: UsageDb, private readonly logoUri: vscode.Uri) {
+	private constructor(panel: vscode.WebviewPanel, private readonly context: vscode.ExtensionContext, private readonly db: UsageDb, private readonly logoUri: vscode.Uri) {
 		this.panel = panel;
 		this.panel.webview.html = getHtml(this.panel.webview, this.logoUri);
 		this.panel.onDidDispose(() => this.dispose());
@@ -21,6 +22,8 @@ export class DashboardPanel {
 					this.windowDays = message.windowDays;
 				}
 				this.postData();
+			} else if (message?.type === 'syncCredits') {
+				void syncActualCreditsUsed(this.context, this.db).then(() => this.postData());
 			}
 		});
 		this.postData();
@@ -43,7 +46,7 @@ export class DashboardPanel {
 		context.subscriptions.push(panel);
 
 		const logoUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(mediaRoot, 'icon.png'));
-		DashboardPanel.currentPanel = new DashboardPanel(panel, db, logoUri);
+		DashboardPanel.currentPanel = new DashboardPanel(panel, context, db, logoUri);
 	}
 
 	refresh(): void {
@@ -68,8 +71,14 @@ export class DashboardPanel {
 		const remainingDaysInMonth = daysInMonth - now.getDate() + 1; // inclusive of today
 		const resetsOn = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-		const creditsThisMonth = this.db.creditsSince(startOfMonth.getTime());
+		const creditsThisMonthLocal = this.db.creditsSince(startOfMonth.getTime());
 		const creditsToday = this.db.creditsSince(startOfToday.getTime());
+		const otherDevicesCredits = getOtherDevicesCreditsThisMonth(this.context);
+		const syncState = getSyncStateThisMonth(this.context);
+		// This extension only observes local Copilot activity; a Business/Enterprise seat's quota is
+		// shared across every device the account uses, so fold in any manually-synced other-devices
+		// credits (see ../reporting/creditsSync.ts) before computing monthly/daily figures.
+		const creditsThisMonth = creditsThisMonthLocal + otherDevicesCredits;
 		const creditsBeforeToday = Math.max(0, creditsThisMonth - creditsToday);
 		const remainingCredits = monthlyCreditLimit > 0 ? Math.max(0, monthlyCreditLimit - creditsThisMonth) : null;
 		// dailyBudget = today's even share of what's left, computed BEFORE today's own spend is deducted —
@@ -91,6 +100,9 @@ export class DashboardPanel {
 			credits: {
 				total: this.db.totalCredits(),
 				thisMonth: creditsThisMonth,
+				localThisMonth: creditsThisMonthLocal,
+				otherDevicesCredits,
+				syncedAt: syncState?.syncedAt ?? null,
 				today: creditsToday,
 				monthlyLimit: monthlyCreditLimit,
 				remaining: remainingCredits,
@@ -226,7 +238,11 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 			<div id="creditsLimitBar"></div>
 			<div id="creditsDailyBar"></div>
 			<div id="creditsTrend" class="trend-row"></div>
-			<div class="footnote">"Cost units" = the <code>copilotCredits</code> value VS Code reports per request. This is a relative cost signal, not guaranteed to exactly match GitHub's official Copilot Business/Enterprise premium-request billing meter. Set <code>usageLogger.monthlyCreditLimit</code> to track against your org's allowance. Hover the numbers above for remaining/daily-budget detail. "Today's budget" = (monthly limit − credits used before today) ÷ remaining days in month.</div>
+			<div class="toolbar" style="margin-top:6px;">
+				<button id="syncCreditsBtn">Sync credits used on other devices</button>
+				<span id="creditsSyncNote"></span>
+			</div>
+			<div class="footnote">"Cost units" = the <code>copilotCredits</code> value VS Code reports per request. This is a relative cost signal, not guaranteed to exactly match GitHub's official Copilot Business/Enterprise premium-request billing meter. Set <code>usageLogger.monthlyCreditLimit</code> to track against your org's allowance. Hover the numbers above for remaining/daily-budget detail. "Today's budget" = (monthly limit − credits used before today) ÷ remaining days in month. This extension only sees local Copilot activity — use "Sync credits used on other devices" to reconcile against the real total shown in the native Copilot Business/Enterprise flyout.</div>
 		</div>
 		<div class="card">
 			<h2>Model fit</h2>
@@ -362,6 +378,9 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 				html += tooltipRow('Monthly limit', 'not set');
 				html += tooltipRow('Used today', Math.round(credits.today).toLocaleString());
 			}
+			if (credits.otherDevicesCredits) {
+				html += tooltipRow('Other devices (synced)', Math.round(credits.otherDevicesCredits).toLocaleString());
+			}
 			const recentDays = (credits.byDay || []).slice(-14);
 			if (recentDays.length > 1) {
 				html += '<div class="tooltip-sparkline-label">Last ' + recentDays.length + ' days</div>';
@@ -373,6 +392,17 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 			totalEl.innerHTML =
 				tooltipRow('All-time total', Math.round(credits.total).toLocaleString()) +
 				'<div class="tooltip-sparkline-label" style="max-width:220px; white-space:normal;">Sum of every logged request\u2019s copilotCredits value on this machine.</div>';
+		}
+
+		function renderCreditsSyncNote(credits) {
+			const el = document.getElementById('creditsSyncNote');
+			if (!credits.otherDevicesCredits) {
+				el.textContent = credits.syncedAt ? 'Synced ' + new Date(credits.syncedAt).toLocaleString() + ' — no gap vs. other devices.' : '';
+				return;
+			}
+			el.textContent = 'Local: ' + Math.round(credits.localThisMonth).toLocaleString() + ' + ' +
+				Math.round(credits.otherDevicesCredits).toLocaleString() + ' from other devices (synced ' +
+				(credits.syncedAt ? new Date(credits.syncedAt).toLocaleString() : 'unknown') + ')';
 		}
 
 		function renderModelFit(fit) {
@@ -405,6 +435,9 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 			if (e.target.checked) { startAutoRefresh(); } else { stopAutoRefresh(); }
 		});
 		document.getElementById('windowDaysSelect').addEventListener('change', requestData);
+		document.getElementById('syncCreditsBtn').addEventListener('click', () => {
+			vscode.postMessage({ type: 'syncCredits' });
+		});
 
 		window.addEventListener('message', (event) => {
 			const msg = event.data;
@@ -427,6 +460,7 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 			renderCreditsLimit(msg.credits.thisMonth, msg.credits.monthlyLimit, msg.credits.remaining);
 			renderDailyBudget(msg.credits);
 			renderTrend('creditsTrend', msg.credits.byDay, 'credits', 'credits');
+			renderCreditsSyncNote(msg.credits);
 
 			renderModelFit(msg.modelFit);
 

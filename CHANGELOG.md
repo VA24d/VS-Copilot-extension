@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+
+- Add: multi-device credits sync. This extension only observes local Copilot activity, but a Business/Enterprise seat's credit quota is shared across every device the account uses — usage on other machines was previously invisible, silently understating the daily-budget figures. New command "Copilot Usage: Sync Actual Credits Used This Month" (also reachable via a button on the dashboard and a link in the status bar hover tooltip) lets you enter the real "used" total from the native Copilot Business/Enterprise flyout; the gap vs. local tracking is stored for the current calendar month (`context.globalState`, auto-resets each month) and folded into the monthly total, remaining, and daily-budget math everywhere it's shown.
+
 ## 0.4.3
 
 - Fix: daily-budget math was double-counting today's own credit spend — it was folded into the monthly remaining pool *before* dividing by days left, then subtracted again when showing "used today" / "remaining today". Now the day's even share is computed from credits used **before** today, so today's usage is only subtracted once. Affects the dashboard's "Today's budget" bar and the status bar's "Remaining today" figure (both previously understated the true daily allotment).
