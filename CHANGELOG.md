@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Add: hover tooltips on the credits card show remaining balance, daily budget, and reset date.
+- Add: "Today's budget" progress bar (remaining credits this month ÷ remaining days in month vs. today's usage).
+- Docs: document the company-wide Mongo dashboard setup in README.
+- Build: exclude `.github/` from the packaged vsix.
+
 ## 0.2.0
 
 - Fix: language detection now scans agent-mode tool-call file paths (`textEditGroup`/`codeblockUri`), cutting "unknown" from ~98% to ~46% of requests.

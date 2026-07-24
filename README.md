@@ -70,6 +70,18 @@ Instead of HTTPS, you can send the same aggregate-only payload to a local/intern
 3. Run **"Copilot Usage: Set MongoDB Connection String"** (e.g. `mongodb://localhost:27017`) — stored in VS Code's encrypted secret storage, never in `settings.json`, since connection strings often embed credentials.
 4. Use **"Copilot Usage: Send Company-Wide Report Now"** to test.
 
+### Company-wide dashboard (Mongo transport only)
+
+If you're using the MongoDB transport, **"Copilot Usage: Open Company-Wide Dashboard"** opens a read-only, org-wide view aggregated live across every machine's latest report in the shared collection — total requests, and breakdowns by category, language, model, and day, plus a per-device table. It reads directly from MongoDB each time it's opened/refreshed; it never writes anything.
+
+Setup is the same prerequisites as the MongoDB transport above — this panel just reads what that transport writes:
+
+1. `usageLogger.reportingTransport` set to `"mongodb"`, with `usageLogger.mongoDatabase` and `usageLogger.mongoCollection` set.
+2. A connection string saved via **"Copilot Usage: Set MongoDB Connection String"**.
+3. At least one device having sent a report (manually via **"Copilot Usage: Send Company-Wide Report Now"**, or on its normal `usageLogger.reportingIntervalMinutes` schedule) so there's a document to read.
+
+If any of these are missing, the panel shows an inline error explaining what to set up instead of a blank dashboard. Since every device sends periodic *cumulative* snapshots (not deltas), the aggregate is computed from only the most recent document per `deviceId` — summing every stored document would overcount.
+
 ## Compliance / audit export
 
 **"Copilot Usage: Export Audit CSV"** writes a metadata-only CSV (timestamp, category, language, model, agent, source, workspace hash) — deliberately excluding prompt/response text, so the export is safe to hand to an auditor without a separate redaction pass.
@@ -100,6 +112,7 @@ Instead of HTTPS, you can send the same aggregate-only payload to a local/intern
 - **Copilot Usage: Send Company-Wide Report Now** — manual/test trigger for the opt-in reporting feature
 - **Copilot Usage: Set Reporting API Key** / **Clear Reporting API Key**
 - **Copilot Usage: Set MongoDB Connection String** / **Clear MongoDB Connection String**
+- **Copilot Usage: Open Company-Wide Dashboard** — org-wide, read-only aggregate view (requires MongoDB transport, see above)
 
 ## Settings
 

@@ -57,9 +57,21 @@ export class DashboardPanel {
 		const monthlyCreditLimit = config.get<number>('monthlyCreditLimit', 0);
 		const minutesPerCategory = config.get<Record<string, number>>('timeSavingsMinutesPerCategory', DEFAULT_MINUTES_SAVED_PER_CATEGORY);
 
+		const now = new Date();
 		const startOfMonth = new Date();
 		startOfMonth.setDate(1);
 		startOfMonth.setHours(0, 0, 0, 0);
+		const startOfToday = new Date();
+		startOfToday.setHours(0, 0, 0, 0);
+
+		const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+		const remainingDaysInMonth = daysInMonth - now.getDate() + 1; // inclusive of today
+		const resetsOn = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+		const creditsThisMonth = this.db.creditsSince(startOfMonth.getTime());
+		const creditsToday = this.db.creditsSince(startOfToday.getTime());
+		const remainingCredits = monthlyCreditLimit > 0 ? Math.max(0, monthlyCreditLimit - creditsThisMonth) : null;
+		const dailyBudget = remainingCredits !== null ? remainingCredits / remainingDaysInMonth : null;
 
 		const modelFit = summarizeModelFit(this.db.listCategoryModelPairs());
 		const timeSavings = estimateTimeSavings(this.db.categoryCounts(), minutesPerCategory);
@@ -75,8 +87,13 @@ export class DashboardPanel {
 			hostname: os.hostname(),
 			credits: {
 				total: this.db.totalCredits(),
-				thisMonth: this.db.creditsSince(startOfMonth.getTime()),
+				thisMonth: creditsThisMonth,
+				today: creditsToday,
 				monthlyLimit: monthlyCreditLimit,
+				remaining: remainingCredits,
+				dailyBudget,
+				remainingDaysInMonth,
+				resetsOn: resetsOn.toISOString(),
 				byDay: this.db.creditsByDay(this.windowDays)
 			},
 			modelFit,
@@ -153,6 +170,7 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 	.trend-row { display: flex; align-items: flex-end; gap: 3px; height: 80px; margin-top: 8px; }
 	.trend-bar { flex: 1; background: var(--vscode-charts-blue, #3794ff); border-radius: 2px 2px 0 0; min-height: 2px; }
 	.trend-bar.credits { background: var(--vscode-charts-purple, #b180d7); }
+	.stat[title] { cursor: help; }
 </style>
 </head>
 <body>
@@ -183,8 +201,9 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 				<div class="stat"><div class="value" id="creditsTotal">–</div><div class="label">used all-time (logged history)</div></div>
 			</div>
 			<div id="creditsLimitBar"></div>
+			<div id="creditsDailyBar"></div>
 			<div id="creditsTrend" class="trend-row"></div>
-			<div class="footnote">"Cost units" = the <code>copilotCredits</code> value VS Code reports per request. This is a relative cost signal, not guaranteed to exactly match GitHub's official Copilot Business/Enterprise premium-request billing meter. Set <code>usageLogger.monthlyCreditLimit</code> to track against your org's allowance.</div>
+			<div class="footnote">"Cost units" = the <code>copilotCredits</code> value VS Code reports per request. This is a relative cost signal, not guaranteed to exactly match GitHub's official Copilot Business/Enterprise premium-request billing meter. Set <code>usageLogger.monthlyCreditLimit</code> to track against your org's allowance. Hover the numbers above for remaining/daily-budget detail. "Today's budget" = remaining credits this month \u00f7 remaining days in month.</div>
 		</div>
 		<div class="card">
 			<h2>Model fit</h2>
@@ -254,7 +273,7 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 			}
 		}
 
-		function renderCreditsLimit(thisMonth, limit) {
+		function renderCreditsLimit(thisMonth, limit, remaining) {
 			const el = document.getElementById('creditsLimitBar');
 			if (!limit || limit <= 0) {
 				el.innerHTML = '<div class="empty">No monthly limit configured (usageLogger.monthlyCreditLimit).</div>';
@@ -262,10 +281,29 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 			}
 			const pct = Math.min(100, Math.round((thisMonth / limit) * 100));
 			const cls = pct >= 100 ? 'over' : (pct >= 80 ? 'warn' : '');
+			const title = 'Used ' + Math.round(thisMonth).toLocaleString() + ' / ' + limit.toLocaleString() + ' (' + pct + '%). Remaining: ' + Math.round(remaining).toLocaleString() + '.';
 			el.innerHTML =
-				'<div class="bar-row"><div class="bar-label">This month</div>' +
+				'<div class="bar-row" title="' + title + '"><div class="bar-label">This month</div>' +
 				'<div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + pct + '%"></div></div>' +
 				'<div class="bar-count">' + pct + '%</div></div>';
+		}
+
+		function renderDailyBudget(credits) {
+			const el = document.getElementById('creditsDailyBar');
+			if (!credits.monthlyLimit || credits.monthlyLimit <= 0) {
+				el.innerHTML = '';
+				return;
+			}
+			const dailyBudget = credits.dailyBudget || 0;
+			const today = credits.today || 0;
+			const pct = dailyBudget > 0 ? Math.min(100, Math.round((today / dailyBudget) * 100)) : (today > 0 ? 100 : 0);
+			const cls = pct >= 100 ? 'over' : (pct >= 80 ? 'warn' : '');
+			const resetsStr = new Date(credits.resetsOn).toLocaleDateString();
+			const title = 'Daily budget: ' + Math.round(dailyBudget).toLocaleString() + '/day (remaining ' + Math.round(credits.remaining).toLocaleString() + ' \u00f7 ' + credits.remainingDaysInMonth + ' days left). Used today: ' + Math.round(today).toLocaleString() + '. Resets ' + resetsStr + '.';
+			el.innerHTML =
+				'<div class="bar-row" title="' + title + '"><div class="bar-label">Today\u2019s budget</div>' +
+				'<div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + pct + '%"></div></div>' +
+				'<div class="bar-count">' + Math.round(today).toLocaleString() + '/' + Math.round(dailyBudget).toLocaleString() + '</div></div>';
 		}
 
 		function renderModelFit(fit) {
@@ -312,9 +350,22 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 			renderBars('byModel', msg.byModel, 'modelId');
 			renderBars('byDay', msg.byDay, 'day');
 
-			document.getElementById('creditsMonth').textContent = Math.round(msg.credits.thisMonth).toLocaleString();
-			document.getElementById('creditsTotal').textContent = Math.round(msg.credits.total).toLocaleString();
-			renderCreditsLimit(msg.credits.thisMonth, msg.credits.monthlyLimit);
+			const creditsMonthEl = document.getElementById('creditsMonth');
+			const creditsTotalEl = document.getElementById('creditsTotal');
+			creditsMonthEl.textContent = Math.round(msg.credits.thisMonth).toLocaleString();
+			creditsTotalEl.textContent = Math.round(msg.credits.total).toLocaleString();
+			if (msg.credits.monthlyLimit > 0) {
+				const resetsStr = new Date(msg.credits.resetsOn).toLocaleDateString();
+				creditsMonthEl.title = 'Remaining: ' + Math.round(msg.credits.remaining).toLocaleString() +
+					' \u00b7 Daily budget: ' + Math.round(msg.credits.dailyBudget).toLocaleString() + '/day (' + msg.credits.remainingDaysInMonth + ' days left)' +
+					' \u00b7 Used today: ' + Math.round(msg.credits.today).toLocaleString() +
+					' \u00b7 Resets ' + resetsStr;
+			} else {
+				creditsMonthEl.title = 'Set usageLogger.monthlyCreditLimit to see remaining/daily-budget stats.';
+			}
+			creditsTotalEl.title = 'Sum of copilotCredits across all logged history on this machine.';
+			renderCreditsLimit(msg.credits.thisMonth, msg.credits.monthlyLimit, msg.credits.remaining);
+			renderDailyBudget(msg.credits);
 			renderTrend('creditsTrend', msg.credits.byDay, 'credits', 'credits');
 
 			renderModelFit(msg.modelFit);
