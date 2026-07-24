@@ -1,7 +1,8 @@
-import * as https from 'https';
 import * as vscode from 'vscode';
 import { URL } from 'url';
+import { getAtlassianCredentials } from './atlassianAuth';
 import { buildSearchCql, cleanExcerpt, htmlToText } from './confluenceText';
+import { basicAuthHeader, httpGetJson, type HttpJsonResult } from './httpJson';
 
 /**
  * Minimal Confluence Cloud REST client used to ground chat answers in the
@@ -20,9 +21,8 @@ import { buildSearchCql, cleanExcerpt, htmlToText } from './confluenceText';
  * - Responses are size-capped to avoid unbounded memory use from a hostile/huge page.
  */
 
+/** @deprecated Retained for backward compatibility; use ATLASSIAN_TOKEN_SECRET_KEY. */
 export const CONFLUENCE_TOKEN_SECRET_KEY = 'usageLogger.confluenceApiToken';
-
-const MAX_RESPONSE_BYTES = 5 * 1024 * 1024; // 5 MB hard cap on any single response
 
 export interface ConfluenceConfig {
 	/** e.g. https://yourcompany.atlassian.net/wiki */
@@ -50,61 +50,16 @@ export interface ConfluencePageContent {
 
 /** Resolves the full Confluence config from settings + secret storage, or undefined if not fully configured. */
 export async function getConfluenceConfig(context: vscode.ExtensionContext): Promise<ConfluenceConfig | undefined> {
-	const config = vscode.workspace.getConfiguration('usageLogger');
-	const baseUrl = config.get<string>('confluenceBaseUrl', '').trim();
-	const email = config.get<string>('confluenceEmail', '').trim();
-	const apiToken = (await context.secrets.get(CONFLUENCE_TOKEN_SECRET_KEY))?.trim();
-	if (!baseUrl || !email || !apiToken) {
+	const baseUrl = vscode.workspace.getConfiguration('usageLogger').get<string>('confluenceBaseUrl', '').trim();
+	const creds = await getAtlassianCredentials(context);
+	if (!baseUrl || !creds) {
 		return undefined;
 	}
-	return { baseUrl: baseUrl.replace(/\/+$/, ''), email, apiToken };
+	return { baseUrl: baseUrl.replace(/\/+$/, ''), email: creds.email, apiToken: creds.apiToken };
 }
 
-function authHeader(config: ConfluenceConfig): string {
-	const encoded = Buffer.from(`${config.email}:${config.apiToken}`, 'utf8').toString('base64');
-	return `Basic ${encoded}`;
-}
-
-interface HttpJsonResult {
-	statusCode: number;
-	body: string;
-}
-
-function httpGetJson(targetUrl: URL, config: ConfluenceConfig, timeoutMs: number): Promise<HttpJsonResult> {
-	if (targetUrl.protocol !== 'https:') {
-		return Promise.reject(new Error(`Refusing to call Confluence over ${targetUrl.protocol} — the base URL must be https://.`));
-	}
-	return new Promise<HttpJsonResult>((resolve, reject) => {
-		const req = https.request(
-			targetUrl,
-			{
-				method: 'GET',
-				timeout: timeoutMs,
-				headers: {
-					'Authorization': authHeader(config),
-					'Accept': 'application/json'
-				}
-			},
-			(res) => {
-				const chunks: Buffer[] = [];
-				let total = 0;
-				res.on('data', (chunk: Buffer) => {
-					total += chunk.length;
-					if (total > MAX_RESPONSE_BYTES) {
-						req.destroy(new Error('Confluence response exceeded size limit'));
-						return;
-					}
-					chunks.push(chunk);
-				});
-				res.on('end', () => {
-					resolve({ statusCode: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') });
-				});
-			}
-		);
-		req.on('timeout', () => req.destroy(new Error('Confluence request timed out')));
-		req.on('error', (err) => reject(err));
-		req.end();
-	});
+function confluenceGet(config: ConfluenceConfig, targetUrl: URL, timeoutMs: number): Promise<HttpJsonResult> {
+	return httpGetJson(targetUrl, { Authorization: basicAuthHeader(config.email, config.apiToken) }, timeoutMs);
 }
 
 /**
@@ -125,14 +80,14 @@ export async function searchConfluence(
 
 	let res: HttpJsonResult;
 	try {
-		res = await httpGetJson(url, config, timeoutMs);
+		res = await confluenceGet(config, url, timeoutMs);
 	} catch (err) {
 		// siteSearch requires a Confluence feature that some sites lack; fall back to plain text search.
 		const fallback = new URL(`${config.baseUrl}/rest/api/search`);
 		fallback.searchParams.set('cql', buildSearchCql(query, 'text'));
 		fallback.searchParams.set('limit', String(boundedLimit));
 		fallback.searchParams.set('excerpt', 'highlight');
-		res = await httpGetJson(fallback, config, timeoutMs);
+		res = await confluenceGet(config, fallback, timeoutMs);
 		void err;
 	}
 
@@ -187,7 +142,7 @@ export async function getConfluencePage(
 	const url = new URL(`${config.baseUrl}/rest/api/content/${pageId}`);
 	url.searchParams.set('expand', 'body.view,space');
 
-	const res = await httpGetJson(url, config, timeoutMs);
+	const res = await confluenceGet(config, url, timeoutMs);
 	if (res.statusCode === 401 || res.statusCode === 403) {
 		throw new Error('Confluence authentication failed (check email + API token and page permissions).');
 	}

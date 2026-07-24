@@ -239,6 +239,12 @@ export class UsageDb {
 			.map(r => ({ modelId: String(r.modelId ?? 'unknown'), count: Number(r.count) }));
 	}
 
+	/** Cost units (`copilotCredits`) grouped by model — shows which models actually consume the budget. */
+	creditsByModel(): Array<{ modelId: string; credits: number }> {
+		return this.rows(`SELECT model_id AS modelId, COALESCE(SUM(copilot_credits), 0) AS credits FROM requests GROUP BY model_id ORDER BY credits DESC`)
+			.map(r => ({ modelId: String(r.modelId ?? 'unknown'), credits: Number(r.credits) }));
+	}
+
 	groupByDay(days: number): Array<{ day: string; count: number }> {
 		const since = Date.now() - days * 24 * 60 * 60 * 1000;
 		return this.rows(`

@@ -91,6 +91,8 @@ If any of these are missing, the panel shows an inline error explaining what to 
 - **Language detection**: primary signal is the file paths actually touched by agent-mode tool calls (edits applied, files shown in a code block), tallied by frequency across every file involved in a request — not just the first match. Falls back to fenced code-block language tags in the response text. Requests with no file touched and no code fence (pure Q&A, planning, terminal-only turns) legitimately show as "unknown" — that's expected, not a bug.
 - **Copilot cost units**: per-request `copilotCredits` value that VS Code itself reports, shown as a running total, a this-month total, and a daily trend. This is a *relative* cost signal — it is **not confirmed to be identical to GitHub's official Copilot Business/Enterprise premium-request billing meter**, so treat it as a useful proxy, not an invoice. Set `usageLogger.monthlyCreditLimit` to show usage against your org's allowance.
 - **Multi-device credits sync**: this extension only sees Copilot activity in the local VS Code windows it's installed in — a Business/Enterprise seat's quota is shared across every device the account uses, so credits spent elsewhere are invisible here and the daily-budget figures will understate real usage. Run "Copilot Usage: Sync Actual Credits Used This Month" (or the "Sync credits used on other devices" button/link on the dashboard and status bar hover) and enter the "used" total shown in the native Copilot Business/Enterprise flyout to reconcile — the gap is stored for the current calendar month and folded into the monthly/daily-budget math. Re-sync periodically since it's a point-in-time correction, not a live feed.
+- **Cost units by model**: which models actually consume your cost units (sum of `copilotCredits` per model), for spotting an expensive model doing routine work a cheaper one could handle.
+- **Burn-rate forecast**: with a `monthlyCreditLimit` set, projects your month-end spend at the current pace and flags whether you're on track to stay under the limit. The status bar item also turns amber once today's spend meets/exceeds today's even budget share.
 - **Trend window**: the "requests per day" and cost-unit trend charts have a selector (7 / 30 / 90 / 180 days) instead of a fixed 30-day window.
 - **Model fit (heuristic)**: flags requests where a high-cost model was used for a task category that's typically low-complexity, or a lightweight model for a typically high-complexity category, based on matching the model name against a rough tier table and the classified category against a rough complexity table. This is a pattern worth a glance for cost optimization — **it is not a judgment on any individual request** and both tables are approximate.
 - **Estimated time saved**: an aggregate estimate, computed from stored request counts per category × a configurable minutes-saved-per-request assumption (`usageLogger.timeSavingsMinutesPerCategory`, defaults loosely informed by published AI pair-programming research such as GitHub's 2022 study reporting ~55% faster task completion). **This is a directional estimate, not a measurement** — nothing in this extension can observe how long a task would have taken without Copilot.
@@ -105,11 +107,32 @@ The extension contributes two language-model tools so Copilot chat (agent mode, 
 Setup:
 
 1. Set `usageLogger.confluenceBaseUrl` to your Confluence Cloud base URL **including** the `/wiki` suffix (e.g. `https://yourcompany.atlassian.net/wiki`).
-2. Set `usageLogger.confluenceEmail` to your Atlassian account email.
+2. Set `usageLogger.confluenceEmail` (or `usageLogger.atlassianEmail`) to your Atlassian account email.
 3. Create an API token at <https://id.atlassian.com/manage/api-tokens>, then run **"Copilot Usage: Set Confluence API Token"** to store it securely (kept in VS Code secret storage, never in `settings.json`).
 4. Optionally run **"Copilot Usage: Test Confluence Connection"** to verify.
 
 Security/behavior notes: requests use HTTP Basic auth over HTTPS only (http:// is refused so credentials are never sent in the clear); the token is stored in secret storage and never logged; the tools are **read-only**; results are size-capped; and the tools honor your Confluence permissions (you only ever see pages your account can already read).
+
+## Jira knowledge tools (chat)
+
+Two more tools ground answers in your organization's Jira issues (tickets, acceptance criteria, status) — via `#jira` / `#jiraIssue` or agent mode:
+
+- `search_jira` — free-text issue search (most-recently-updated first); returns key, summary, type, status, assignee, url.
+- `get_jira_issue` — full details + HTML-stripped description of one issue by key (e.g. `PROJ-123`).
+
+Setup: set `usageLogger.jiraBaseUrl` to your Jira Cloud site **without** a path suffix (e.g. `https://yourcompany.atlassian.net`). Jira reuses the **same** Atlassian email + API token as Confluence — one token authenticates both. Optionally run **"Copilot Usage: Test Jira Connection"**. Same security posture as the Confluence tools (HTTPS-only, read-only, permission-honoring).
+
+## GitHub knowledge tools (chat)
+
+Search your org's GitHub beyond the open workspace — via `#github` or agent mode:
+
+- `search_github` — search `issues` (and PRs), `code`, or `repositories`. Returns title, detail, url.
+
+Setup: run **"Copilot Usage: Set GitHub Token"** to store a personal access token (classic or fine-grained; code search requires an authenticated token) in secret storage. Optionally set `usageLogger.githubOrg` to scope every search to one organization. Read-only; honors the token's own permissions; token never logged.
+
+## Getting started
+
+Run **"Copilot Usage: Setup"** for a guided menu of everything above, or open the **Copilot Usage Logger — Getting Started** walkthrough (Help → Get Started).
 
 ## Known limitations (MVP)
 

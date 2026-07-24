@@ -117,8 +117,8 @@ export function registerConfluenceIntegration(context: vscode.ExtensionContext):
 	context.subscriptions.push(
 		vscode.commands.registerCommand('usageLogger.setConfluenceApiToken', async () => {
 			const value = await vscode.window.showInputBox({
-				title: 'Set Confluence API Token',
-				prompt: 'Atlassian API token (create at https://id.atlassian.com/manage/api-tokens). Stored securely, never in settings.json.',
+				title: 'Set Confluence / Atlassian API Token',
+				prompt: 'Atlassian API token (create at https://id.atlassian.com/manage/api-tokens). Used for BOTH Confluence and Jira. Stored securely, never in settings.json.',
 				password: true,
 				ignoreFocusOut: true
 			});

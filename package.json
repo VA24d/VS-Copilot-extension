@@ -2,7 +2,7 @@
   "name": "copilot-usage-logger",
   "displayName": "Lloyds Banking Group — Copilot Usage Logger",
   "description": "Local-only logging and classification of your Copilot Chat usage, with a dashboard by category, language, model, and day.",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "publisher": "local-dev",
   "private": true,
   "license": "UNLICENSED",
@@ -82,6 +82,22 @@
       {
         "command": "usageLogger.testConfluenceConnection",
         "title": "Copilot Usage: Test Confluence Connection"
+      },
+      {
+        "command": "usageLogger.testJiraConnection",
+        "title": "Copilot Usage: Test Jira Connection"
+      },
+      {
+        "command": "usageLogger.setGithubToken",
+        "title": "Copilot Usage: Set GitHub Token"
+      },
+      {
+        "command": "usageLogger.clearGithubToken",
+        "title": "Copilot Usage: Clear GitHub Token"
+      },
+      {
+        "command": "usageLogger.runSetup",
+        "title": "Copilot Usage: Setup"
       }
     ],
     "chatParticipants": [
@@ -152,6 +168,101 @@
           },
           "required": [
             "pageId"
+          ]
+        }
+      },
+      {
+        "name": "search_jira",
+        "displayName": "Search Jira",
+        "modelDescription": "Search the organization's Jira issue tracker for issues/tickets matching a free-text query, most-recently-updated first. Use this to ground answers in tickets, bug reports, acceptance criteria, and work status that aren't in the codebase. Returns a list of issues, each with a key (e.g. PROJ-123), summary, type, status, assignee, and URL. To read an issue's full description, follow up with get_jira_issue using the returned key. Requires the user to have configured a Jira base URL plus Atlassian email and API token.",
+        "userDescription": "Search your organization's Jira issues to answer questions using ticket data.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "jira",
+        "icon": "$(bug)",
+        "tags": [
+          "jira",
+          "knowledge",
+          "issues"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Free-text search terms describing the issue(s) to find (e.g. 'payment retry timeout bug')."
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of issues to return (1-20). Defaults to 5."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "get_jira_issue",
+        "displayName": "Read Jira Issue",
+        "modelDescription": "Fetch the full details of a single Jira issue by its key (e.g. PROJ-123, as returned by search_jira), including summary, type, status, priority, assignee, reporter, and the HTML-stripped description. Use this after search_jira to read a ticket's details before answering. Requires the user to have configured Jira access.",
+        "userDescription": "Read the full details of a specific Jira issue.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "jiraIssue",
+        "icon": "$(issues)",
+        "tags": [
+          "jira",
+          "knowledge",
+          "issues"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "issueKey": {
+              "type": "string",
+              "description": "The Jira issue key to fetch, like 'PROJ-123' (obtained from search_jira results)."
+            }
+          },
+          "required": [
+            "issueKey"
+          ]
+        }
+      },
+      {
+        "name": "search_github",
+        "displayName": "Search GitHub",
+        "modelDescription": "Search GitHub across the organization for issues/pull requests, code, or repositories beyond the currently-open workspace. Use this to ground answers in other repos, related tickets/PRs, or where a symbol or pattern is used org-wide. Set 'type' to 'issues' (default, includes PRs), 'code', or 'repositories'. Results are scoped to the configured GitHub org when usageLogger.githubOrg is set. Returns a list of results with a title, detail, and URL. Requires the user to have stored a GitHub personal access token (code search in particular requires authentication).",
+        "userDescription": "Search your organization's GitHub issues, PRs, code, and repositories.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "github",
+        "icon": "$(github)",
+        "tags": [
+          "github",
+          "knowledge",
+          "code"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search terms. May include GitHub search qualifiers (e.g. 'repo:owner/name', 'in:title', 'state:open')."
+            },
+            "type": {
+              "type": "string",
+              "enum": [
+                "issues",
+                "code",
+                "repositories"
+              ],
+              "description": "What to search: 'issues' (issues and pull requests, default), 'code', or 'repositories'."
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of results to return (1-20). Defaults to 5."
+            }
+          },
+          "required": [
+            "query"
           ]
         }
       }
@@ -249,9 +360,77 @@
           "type": "string",
           "default": "",
           "description": "The Atlassian account email used with your Confluence API token for authentication."
+        },
+        "usageLogger.atlassianEmail": {
+          "type": "string",
+          "default": "",
+          "description": "Optional: Atlassian account email for Confluence AND Jira. If empty, usageLogger.confluenceEmail is used. The single Atlassian API token (set via 'Copilot Usage: Set Confluence API Token') authenticates both products."
+        },
+        "usageLogger.jiraBaseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL of your Jira Cloud site, without a trailing path (e.g. https://yourcompany.atlassian.net). Enables the search_jira and get_jira_issue chat tools. Uses the same Atlassian email + API token as Confluence."
+        },
+        "usageLogger.githubOrg": {
+          "type": "string",
+          "default": "",
+          "description": "Optional GitHub organization/login to scope the search_github chat tool to (e.g. 'my-company'). Leave empty to search across everything the token can see."
         }
       }
-    }
+    },
+    "walkthroughs": [
+      {
+        "id": "usageLogger.gettingStarted",
+        "title": "Copilot Usage Logger — Getting Started",
+        "description": "Track your Copilot usage and ground chat answers in your org's Confluence, Jira, and GitHub.",
+        "steps": [
+          {
+            "id": "usageLogger.step.dashboard",
+            "title": "Open the dashboard",
+            "description": "See your Copilot usage: requests, cost units, model fit, and estimated time saved.\n[Open Dashboard](command:usageLogger.openDashboard)",
+            "media": {
+              "markdown": "media/walkthrough/dashboard.md"
+            },
+            "completionEvents": [
+              "onCommand:usageLogger.openDashboard"
+            ]
+          },
+          {
+            "id": "usageLogger.step.creditLimit",
+            "title": "Set your monthly credit limit",
+            "description": "Enter your Copilot Business/Enterprise premium-request allowance so the dashboard and status bar can show a daily budget and burn-rate forecast.\n[Open Setting](command:usageLogger.runSetup)",
+            "media": {
+              "markdown": "media/walkthrough/credits.md"
+            },
+            "completionEvents": [
+              "onSettingChanged:usageLogger.monthlyCreditLimit"
+            ]
+          },
+          {
+            "id": "usageLogger.step.atlassian",
+            "title": "Connect Confluence & Jira (optional)",
+            "description": "Ground chat answers in your org's wiki and tickets. Set the base URLs + email, then store one Atlassian API token.\n[Run Setup](command:usageLogger.runSetup)",
+            "media": {
+              "markdown": "media/walkthrough/atlassian.md"
+            },
+            "completionEvents": [
+              "onCommand:usageLogger.setConfluenceApiToken"
+            ]
+          },
+          {
+            "id": "usageLogger.step.github",
+            "title": "Connect GitHub (optional)",
+            "description": "Let chat search your org's issues, PRs, code, and repositories.\n[Set GitHub Token](command:usageLogger.setGithubToken)",
+            "media": {
+              "markdown": "media/walkthrough/github.md"
+            },
+            "completionEvents": [
+              "onCommand:usageLogger.setGithubToken"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

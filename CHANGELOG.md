@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0
+
+- Add: **Jira knowledge tools** — `search_jira` and `get_jira_issue` (`#jira` / `#jiraIssue`) ground chat answers in your org's Jira issues. Reuses the same Atlassian email + API token as Confluence; only `usageLogger.jiraBaseUrl` is new. Read-only, HTTPS-only, permission-honoring.
+- Add: **GitHub knowledge tool** — `search_github` (`#github`) searches your org's issues/PRs, code, or repositories beyond the open workspace. Store a PAT via "Copilot Usage: Set GitHub Token" (secret storage); optionally scope with `usageLogger.githubOrg`.
+- Add: **Cost units by model** dashboard card — shows which models actually consume your Copilot cost units (sum of `copilotCredits` per model).
+- Add: **Burn-rate forecast** — dashboard projects month-end spend vs. your `monthlyCreditLimit` and flags over/under; the status bar item turns amber once today's spend meets/exceeds today's even budget share.
+- Add: **Getting-started walkthrough** (Help → Get Started) and a **"Copilot Usage: Setup"** command for guided configuration of credits, Confluence, Jira, GitHub, and MongoDB.
+- Internal: shared HTTPS-JSON + Atlassian-auth helpers extracted (vscode-free, unit-tested); 65 tests total.
+
 ## 0.6.0
 
 - Add: Confluence knowledge integration. Two read-only language-model tools — `search_confluence` and `get_confluence_page` — let Copilot chat (agent mode, or `#confluence` / `#confluencePage`) ground answers in your organization's Confluence Cloud wiki (internal standards, runbooks, architecture, onboarding, policies). Configure `usageLogger.confluenceBaseUrl` + `usageLogger.confluenceEmail`, then store an Atlassian API token via "Copilot Usage: Set Confluence API Token" (kept in secret storage, never in settings.json). Auth is HTTP Basic over HTTPS only; the token is never logged; results are size-capped; and the tools honor your existing Confluence permissions. Also adds "Clear Confluence API Token" and "Test Confluence Connection" commands. Minimum VS Code raised to 1.95 (finalized languageModelTools contribution point).

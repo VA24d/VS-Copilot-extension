@@ -2,6 +2,15 @@ import * as vscode from 'vscode';
 import { getOtherDevicesCreditsThisMonth, getSyncStateThisMonth } from '../reporting/creditsSync';
 import type { UsageDb } from '../storage/db';
 
+interface DailyBudgetInfo {
+	dailyBudget: number;
+	remainingToday: number;
+	pct: number;
+	bar: string;
+	otherDevicesCredits: number;
+	syncedAt: number | undefined;
+}
+
 /** StatusBarItem showing today's request count, updated after each ingest batch. Click opens the dashboard. */
 export class UsageStatusBar implements vscode.Disposable {
 	private readonly item: vscode.StatusBarItem;
@@ -28,25 +37,32 @@ export class UsageStatusBar implements vscode.Disposable {
 		if (this.privateMode) {
 			this.item.text = `$(lock) Private mode`;
 			this.item.tooltip = 'Copilot Usage Logger: private mode is ON — logging is paused. Click for dashboard.';
+			this.item.backgroundColor = undefined;
 		} else {
-			this.item.text = `$(copilot) ${today} today`;
-			this.item.tooltip = this.buildTooltip(today, todayStart.getTime());
+			const creditsToday = this.db.creditsSince(todayStart.getTime());
+			const budget = this.dailyBudgetInfo(todayStart.getTime(), creditsToday);
+			const over = budget !== null && budget.pct >= 100;
+			this.item.text = `${over ? '$(warning)' : '$(copilot)'} ${today} today`;
+			this.item.tooltip = this.buildTooltipFrom(today, creditsToday, budget);
+			// Amber warning background once today's spend meets/exceeds today's even budget share.
+			this.item.backgroundColor = over ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
 		}
 	}
 
-	private buildTooltip(today: number, todayStartMs: number): vscode.MarkdownString {
+	private buildTooltipFrom(today: number, creditsToday: number, budget: DailyBudgetInfo | null): vscode.MarkdownString {
 		const total = this.db.countAll();
-		const creditsToday = this.db.creditsSince(todayStartMs);
 		const md = new vscode.MarkdownString(undefined, true);
 		md.isTrusted = true;
 		md.appendMarkdown(`**Copilot Usage Logger**\n\n`);
 		md.appendMarkdown(`- Requests today: **${today}**\n`);
 		md.appendMarkdown(`- Cost units today: **${Math.round(creditsToday).toLocaleString()}**\n`);
 
-		const budget = this.dailyBudgetInfo(todayStartMs, creditsToday);
 		if (budget) {
 			md.appendMarkdown(`- Daily budget: \`${budget.bar}\` ${budget.pct}% (${Math.round(creditsToday).toLocaleString()} / ${Math.round(budget.dailyBudget).toLocaleString()})\n`);
 			md.appendMarkdown(`- Remaining today: **${Math.round(budget.remainingToday).toLocaleString()}**\n`);
+			if (budget.pct >= 100) {
+				md.appendMarkdown(`- ⚠️ Over today's budget share\n`);
+			}
 			if (budget.otherDevicesCredits > 0) {
 				const syncedAt = budget.syncedAt ? new Date(budget.syncedAt).toLocaleString() : 'unknown';
 				md.appendMarkdown(`- Includes ${Math.round(budget.otherDevicesCredits).toLocaleString()} synced from other devices (as of ${syncedAt})\n`);
@@ -67,7 +83,7 @@ export class UsageStatusBar implements vscode.Disposable {
 	 * ../reporting/creditsSync.ts), since this extension only observes local Copilot activity and a
 	 * Business/Enterprise seat's quota is shared across every device the account uses.
 	 */
-	private dailyBudgetInfo(todayStartMs: number, creditsToday: number): { dailyBudget: number; remainingToday: number; pct: number; bar: string; otherDevicesCredits: number; syncedAt: number | undefined } | null {
+	private dailyBudgetInfo(todayStartMs: number, creditsToday: number): DailyBudgetInfo | null {
 		const monthlyCreditLimit = vscode.workspace.getConfiguration('usageLogger').get<number>('monthlyCreditLimit', 0);
 		if (!monthlyCreditLimit || monthlyCreditLimit <= 0) {
 			return null;

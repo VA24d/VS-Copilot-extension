@@ -85,6 +85,10 @@ export class DashboardPanel {
 		// otherwise today's usage gets divided into the pool and then subtracted again downstream (double-counted).
 		const dailyBudget = monthlyCreditLimit > 0 ? Math.max(0, monthlyCreditLimit - creditsBeforeToday) / remainingDaysInMonth : null;
 
+		// Burn-rate forecast: extrapolate this month's spend-to-date to a projected month-end total.
+		const dayOfMonth = now.getDate();
+		const projectedMonthEnd = dayOfMonth > 0 ? (creditsThisMonth / dayOfMonth) * daysInMonth : creditsThisMonth;
+
 		const modelFit = summarizeModelFit(this.db.listCategoryModelPairs());
 		const timeSavings = estimateTimeSavings(this.db.categoryCounts(), minutesPerCategory);
 
@@ -94,6 +98,7 @@ export class DashboardPanel {
 			byCategory: this.db.groupByCategory(),
 			byLanguage: this.db.groupByLanguage(),
 			byModel: this.db.groupByModel(),
+			byModelCredits: this.db.creditsByModel(),
 			byDay: this.db.groupByDay(this.windowDays),
 			windowDays: this.windowDays,
 			hostname: os.hostname(),
@@ -107,6 +112,7 @@ export class DashboardPanel {
 				monthlyLimit: monthlyCreditLimit,
 				remaining: remainingCredits,
 				dailyBudget,
+				projectedMonthEnd,
 				remainingDaysInMonth,
 				resetsOn: resetsOn.toISOString(),
 				byDay: this.db.creditsByDay(this.windowDays)
@@ -182,6 +188,11 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 	.stat .value { font-size: 1.6em; font-weight: 600; }
 	.stat .label { font-size: 0.8em; opacity: 0.7; }
 	.footnote { font-size: 0.75em; opacity: 0.6; margin-top: 8px; line-height: 1.4; }
+	.forecast { font-size: 0.85em; margin-top: 8px; line-height: 1.5; }
+	.forecast-pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 0.85em; font-weight: 600; margin-right: 6px; }
+	.forecast-pill.ok { background: var(--vscode-charts-green, #388a34); color: #fff; }
+	.forecast-pill.warn { background: var(--vscode-charts-orange, #d18616); color: #fff; }
+	.forecast-pill.over { background: var(--vscode-charts-red, #f14c4c); color: #fff; }
 	.trend-row { display: flex; align-items: flex-end; gap: 3px; height: 80px; margin-top: 8px; }
 	.trend-bar { flex: 1; background: var(--vscode-charts-blue, #3794ff); border-radius: 2px 2px 0 0; min-height: 2px; }
 	.trend-bar.credits { background: var(--vscode-charts-purple, #b180d7); }
@@ -237,12 +248,18 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 			</div>
 			<div id="creditsLimitBar"></div>
 			<div id="creditsDailyBar"></div>
+			<div id="creditsForecast" class="forecast"></div>
 			<div id="creditsTrend" class="trend-row"></div>
 			<div class="toolbar" style="margin-top:6px;">
 				<button id="syncCreditsBtn">Sync credits used on other devices</button>
 				<span id="creditsSyncNote"></span>
 			</div>
 			<div class="footnote">"Cost units" = the <code>copilotCredits</code> value VS Code reports per request. This is a relative cost signal, not guaranteed to exactly match GitHub's official Copilot Business/Enterprise premium-request billing meter. Set <code>usageLogger.monthlyCreditLimit</code> to track against your org's allowance. Hover the numbers above for remaining/daily-budget detail. "Today's budget" = (monthly limit − credits used before today) ÷ remaining days in month. This extension only sees local Copilot activity — use "Sync credits used on other devices" to reconcile against the real total shown in the native Copilot Business/Enterprise flyout.</div>
+		</div>
+		<div class="card">
+			<h2>Cost units by model</h2>
+			<div id="byModelCredits"></div>
+			<div class="footnote">Which models actually consume your Copilot cost units (sum of <code>copilotCredits</code> per model across all logged history). Useful for spotting where an expensive model is doing routine work that a cheaper one could handle.</div>
 		</div>
 		<div class="card">
 			<h2>Model fit</h2>
@@ -394,6 +411,25 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 				'<div class="tooltip-sparkline-label" style="max-width:220px; white-space:normal;">Sum of every logged request\u2019s copilotCredits value on this machine.</div>';
 		}
 
+		function renderCreditsForecast(credits) {
+			const el = document.getElementById('creditsForecast');
+			if (!credits.monthlyLimit || credits.monthlyLimit <= 0 || !credits.projectedMonthEnd) {
+				el.innerHTML = '';
+				return;
+			}
+			const projected = Math.round(credits.projectedMonthEnd);
+			const limit = credits.monthlyLimit;
+			const overBy = projected - limit;
+			const pctOfLimit = Math.round((projected / limit) * 100);
+			const cls = projected > limit ? 'over' : (pctOfLimit >= 90 ? 'warn' : 'ok');
+			const verdict = projected > limit
+				? 'projected to EXCEED limit by ' + overBy.toLocaleString()
+				: 'projected to stay under limit (' + (limit - projected).toLocaleString() + ' to spare)';
+			el.innerHTML = '<span class="forecast-pill ' + cls + '">Burn-rate forecast</span> ' +
+				'at the current pace, month-end \u2248 <strong>' + projected.toLocaleString() + '</strong> / ' +
+				limit.toLocaleString() + ' (' + pctOfLimit + '% of limit) \u2014 ' + verdict + '.';
+		}
+
 		function renderCreditsSyncNote(credits) {
 			const el = document.getElementById('creditsSyncNote');
 			if (!credits.otherDevicesCredits) {
@@ -450,6 +486,7 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 			renderBars('byCategory', msg.byCategory, 'category');
 			renderBars('byLanguage', msg.byLanguage, 'language');
 			renderBars('byModel', msg.byModel, 'modelId');
+			renderBars('byModelCredits', (msg.byModelCredits || []).map(function (r) { return { modelId: r.modelId, count: Math.round(r.credits) }; }), 'modelId');
 			renderBars('byDay', msg.byDay, 'day');
 
 			const creditsMonthEl = document.getElementById('creditsMonth');
@@ -459,6 +496,7 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 			renderCreditsTooltip(msg.credits);
 			renderCreditsLimit(msg.credits.thisMonth, msg.credits.monthlyLimit, msg.credits.remaining);
 			renderDailyBudget(msg.credits);
+			renderCreditsForecast(msg.credits);
 			renderTrend('creditsTrend', msg.credits.byDay, 'credits', 'credits');
 			renderCreditsSyncNote(msg.credits);
 

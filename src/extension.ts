@@ -9,6 +9,8 @@ import { CompanyDashboardPanel } from './reporting/companyDashboardPanel';
 import { syncActualCreditsUsed } from './reporting/creditsSync';
 import { ReportingService } from './reporting/reportingService';
 import { registerConfluenceIntegration } from './knowledge/confluenceTools';
+import { registerJiraIntegration } from './knowledge/jiraTools';
+import { registerGithubIntegration } from './knowledge/githubTools';
 import { UsageDb } from './storage/db';
 import { DashboardPanel } from './ui/dashboardPanel';
 import { UsageStatusBar } from './ui/statusBar';
@@ -73,6 +75,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	registerUsageChatParticipant(context, db);
 
 	registerConfluenceIntegration(context);
+
+	registerJiraIntegration(context);
+
+	registerGithubIntegration(context);
 
 	const reportingService = new ReportingService(context, db, outputChannel);
 	context.subscriptions.push(reportingService);
@@ -139,6 +145,30 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			statusBar.refresh();
 			if (DashboardPanel.currentPanel) {
 				DashboardPanel.currentPanel.refresh();
+			}
+		}),
+		vscode.commands.registerCommand('usageLogger.runSetup', async () => {
+			const pick = await vscode.window.showQuickPick(
+				[
+					{ label: '$(dashboard) Open Dashboard', command: 'usageLogger.openDashboard' },
+					{ label: '$(settings-gear) Set monthly credit limit', setting: 'usageLogger.monthlyCreditLimit' },
+					{ label: '$(sync) Sync actual credits used this month', command: 'usageLogger.syncActualCredits' },
+					{ label: '$(book) Configure Confluence base URL', setting: 'usageLogger.confluenceBaseUrl' },
+					{ label: '$(key) Set Confluence/Atlassian API token', command: 'usageLogger.setConfluenceApiToken' },
+					{ label: '$(bug) Configure Jira base URL', setting: 'usageLogger.jiraBaseUrl' },
+					{ label: '$(github) Set GitHub token', command: 'usageLogger.setGithubToken' },
+					{ label: '$(organization) Set GitHub org scope', setting: 'usageLogger.githubOrg' },
+					{ label: '$(database) Set MongoDB connection string', command: 'usageLogger.setMongoConnectionString' }
+				],
+				{ title: 'Copilot Usage Logger — Setup', placeHolder: 'Pick something to configure' }
+			);
+			if (!pick) {
+				return;
+			}
+			if ('command' in pick && pick.command) {
+				await vscode.commands.executeCommand(pick.command);
+			} else if ('setting' in pick && pick.setting) {
+				await vscode.commands.executeCommand('workbench.action.openSettings', pick.setting);
 			}
 		}),
 		vscode.commands.registerCommand('usageLogger.exportAuditCsv', async () => {
