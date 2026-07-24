@@ -2,7 +2,7 @@
   "name": "copilot-usage-logger",
   "displayName": "Lloyds Banking Group — Copilot Usage Logger",
   "description": "Local-only logging and classification of your Copilot Chat usage, with a dashboard by category, language, model, and day.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "local-dev",
   "private": true,
   "license": "UNLICENSED",
@@ -12,7 +12,7 @@
     "url": "https://github.com/VA24d/VS-Copilot-extension.git"
   },
   "engines": {
-    "vscode": "^1.93.0"
+    "vscode": "^1.95.0"
   },
   "categories": [
     "Other"
@@ -70,6 +70,18 @@
       {
         "command": "usageLogger.syncActualCredits",
         "title": "Copilot Usage: Sync Actual Credits Used This Month"
+      },
+      {
+        "command": "usageLogger.setConfluenceApiToken",
+        "title": "Copilot Usage: Set Confluence API Token"
+      },
+      {
+        "command": "usageLogger.clearConfluenceApiToken",
+        "title": "Copilot Usage: Clear Confluence API Token"
+      },
+      {
+        "command": "usageLogger.testConfluenceConnection",
+        "title": "Copilot Usage: Test Confluence Connection"
       }
     ],
     "chatParticipants": [
@@ -84,6 +96,64 @@
             "description": "Show a quick summary of your Copilot usage."
           }
         ]
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "search_confluence",
+        "displayName": "Search Confluence",
+        "modelDescription": "Search the organization's Confluence knowledge base (internal wiki) for pages matching a free-text query. Use this to ground answers in company/institution-specific documentation, standards, runbooks, architecture decisions, onboarding guides, and policies that are not in the codebase. Returns a ranked list of matching pages, each with a title, numeric id, URL, and a short excerpt. To read a page's full content, follow up with get_confluence_page using the returned id. Requires the user to have configured a Confluence base URL, account email, and API token.",
+        "userDescription": "Search your organization's Confluence wiki to answer questions using internal documentation.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "confluence",
+        "icon": "$(book)",
+        "tags": [
+          "confluence",
+          "knowledge",
+          "documentation"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Free-text search terms describing the information to find in Confluence (e.g. 'deployment runbook for payments service')."
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of pages to return (1-15). Defaults to 5."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "get_confluence_page",
+        "displayName": "Read Confluence Page",
+        "modelDescription": "Fetch the full plain-text content of a single Confluence page by its numeric id (as returned by search_confluence). Use this after search_confluence to read the details of the most relevant page(s) before answering. The page body is HTML-stripped and may be truncated if very long. Requires the user to have configured Confluence access.",
+        "userDescription": "Read the full content of a specific Confluence page.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "confluencePage",
+        "icon": "$(file)",
+        "tags": [
+          "confluence",
+          "knowledge",
+          "documentation"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "pageId": {
+              "type": "string",
+              "description": "The numeric Confluence page id to fetch (obtained from search_confluence results)."
+            }
+          },
+          "required": [
+            "pageId"
+          ]
+        }
       }
     ],
     "configuration": {
@@ -169,6 +239,16 @@
           "type": "object",
           "default": {},
           "description": "Override the default estimated-minutes-saved-per-request values (by category, e.g. {\"debug-fix\": 20}) used for the dashboard's 'Estimated time saved' card. This is always a rough heuristic estimate, never a measurement — leave empty to use the built-in defaults."
+        },
+        "usageLogger.confluenceBaseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL of your Confluence Cloud wiki, including the /wiki suffix (e.g. https://yourcompany.atlassian.net/wiki). Enables the search_confluence and get_confluence_page chat tools. The API token is set separately via 'Copilot Usage: Set Confluence API Token' (stored securely, not here)."
+        },
+        "usageLogger.confluenceEmail": {
+          "type": "string",
+          "default": "",
+          "description": "The Atlassian account email used with your Confluence API token for authentication."
         }
       }
     }
@@ -188,7 +268,7 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/sql.js": "^1.4.9",
-    "@types/vscode": "^1.93.0",
+    "@types/vscode": "^1.95.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vscode/vsce": "^2.27.0",

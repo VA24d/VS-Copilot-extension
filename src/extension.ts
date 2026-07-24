@@ -8,6 +8,7 @@ import { registerUsageChatParticipant } from './participant/usageChatParticipant
 import { CompanyDashboardPanel } from './reporting/companyDashboardPanel';
 import { syncActualCreditsUsed } from './reporting/creditsSync';
 import { ReportingService } from './reporting/reportingService';
+import { registerConfluenceIntegration } from './knowledge/confluenceTools';
 import { UsageDb } from './storage/db';
 import { DashboardPanel } from './ui/dashboardPanel';
 import { UsageStatusBar } from './ui/statusBar';
@@ -70,6 +71,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	context.subscriptions.push({ dispose: () => { if (flushTimer) { clearTimeout(flushTimer); } } });
 
 	registerUsageChatParticipant(context, db);
+
+	registerConfluenceIntegration(context);
 
 	const reportingService = new ReportingService(context, db, outputChannel);
 	context.subscriptions.push(reportingService);

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0
+
+- Add: Confluence knowledge integration. Two read-only language-model tools — `search_confluence` and `get_confluence_page` — let Copilot chat (agent mode, or `#confluence` / `#confluencePage`) ground answers in your organization's Confluence Cloud wiki (internal standards, runbooks, architecture, onboarding, policies). Configure `usageLogger.confluenceBaseUrl` + `usageLogger.confluenceEmail`, then store an Atlassian API token via "Copilot Usage: Set Confluence API Token" (kept in secret storage, never in settings.json). Auth is HTTP Basic over HTTPS only; the token is never logged; results are size-capped; and the tools honor your existing Confluence permissions. Also adds "Clear Confluence API Token" and "Test Confluence Connection" commands. Minimum VS Code raised to 1.95 (finalized languageModelTools contribution point).
+
 ## 0.5.0
 
 - Add: multi-device credits sync. This extension only observes local Copilot activity, but a Business/Enterprise seat's credit quota is shared across every device the account uses — usage on other machines was previously invisible, silently understating the daily-budget figures. New command "Copilot Usage: Sync Actual Credits Used This Month" (also reachable via a button on the dashboard and a link in the status bar hover tooltip) lets you enter the real "used" total from the native Copilot Business/Enterprise flyout; the gap vs. local tracking is stored for the current calendar month (`context.globalState`, auto-resets each month) and folded into the monthly total, remaining, and daily-budget math everywhere it's shown.

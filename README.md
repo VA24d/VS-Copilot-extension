@@ -95,6 +95,22 @@ If any of these are missing, the panel shows an inline error explaining what to 
 - **Model fit (heuristic)**: flags requests where a high-cost model was used for a task category that's typically low-complexity, or a lightweight model for a typically high-complexity category, based on matching the model name against a rough tier table and the classified category against a rough complexity table. This is a pattern worth a glance for cost optimization — **it is not a judgment on any individual request** and both tables are approximate.
 - **Estimated time saved**: an aggregate estimate, computed from stored request counts per category × a configurable minutes-saved-per-request assumption (`usageLogger.timeSavingsMinutesPerCategory`, defaults loosely informed by published AI pair-programming research such as GitHub's 2022 study reporting ~55% faster task completion). **This is a directional estimate, not a measurement** — nothing in this extension can observe how long a task would have taken without Copilot.
 
+## Confluence knowledge tools (chat)
+
+The extension contributes two language-model tools so Copilot chat (agent mode, or via `#confluence` / `#confluencePage`) can ground its answers in your organization's Confluence wiki — internal standards, runbooks, architecture decisions, onboarding docs, and policies that aren't in the codebase:
+
+- `search_confluence` — free-text search of your Confluence Cloud site; returns matching pages (title, id, url, excerpt).
+- `get_confluence_page` — fetches the full (HTML-stripped, length-capped) text of a page by id.
+
+Setup:
+
+1. Set `usageLogger.confluenceBaseUrl` to your Confluence Cloud base URL **including** the `/wiki` suffix (e.g. `https://yourcompany.atlassian.net/wiki`).
+2. Set `usageLogger.confluenceEmail` to your Atlassian account email.
+3. Create an API token at <https://id.atlassian.com/manage/api-tokens>, then run **"Copilot Usage: Set Confluence API Token"** to store it securely (kept in VS Code secret storage, never in `settings.json`).
+4. Optionally run **"Copilot Usage: Test Confluence Connection"** to verify.
+
+Security/behavior notes: requests use HTTP Basic auth over HTTPS only (http:// is refused so credentials are never sent in the clear); the token is stored in secret storage and never logged; the tools are **read-only**; results are size-capped; and the tools honor your Confluence permissions (you only ever see pages your account can already read).
+
 ## Known limitations (MVP)
 
 - Remote windows (SSH/WSL/Codespaces) are not supported yet — the extension no-ops in remote windows.
