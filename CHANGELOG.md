@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0
+
+- Add: **`usageLogger.statusBarDisplay`** setting — switch the status bar item's primary text between today's request count (`requests`, default) and remaining cost-unit budget for today (`remainingCredits`). Falls back to the request count if `remainingCredits` is selected but `usageLogger.monthlyCreditLimit` isn't set. Takes effect immediately on change, no reload needed.
+
 ## 0.7.0
 
 - Add: **Jira knowledge tools** — `search_jira` and `get_jira_issue` (`#jira` / `#jiraIssue`) ground chat answers in your org's Jira issues. Reuses the same Atlassian email + API token as Confluence; only `usageLogger.jiraBaseUrl` is new. Read-only, HTTPS-only, permission-honoring.

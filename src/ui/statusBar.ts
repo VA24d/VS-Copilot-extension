@@ -11,7 +11,7 @@ interface DailyBudgetInfo {
 	syncedAt: number | undefined;
 }
 
-/** StatusBarItem showing today's request count, updated after each ingest batch. Click opens the dashboard. */
+/** StatusBarItem showing today's request count (or, if usageLogger.statusBarDisplay is 'remainingCredits', remaining cost-unit budget for today), updated after each ingest batch. Click opens the dashboard. */
 export class UsageStatusBar implements vscode.Disposable {
 	private readonly item: vscode.StatusBarItem;
 	private privateMode = false;
@@ -42,7 +42,14 @@ export class UsageStatusBar implements vscode.Disposable {
 			const creditsToday = this.db.creditsSince(todayStart.getTime());
 			const budget = this.dailyBudgetInfo(todayStart.getTime(), creditsToday);
 			const over = budget !== null && budget.pct >= 100;
-			this.item.text = `${over ? '$(warning)' : '$(copilot)'} ${today} today`;
+			const displayMode = vscode.workspace.getConfiguration('usageLogger').get<string>('statusBarDisplay', 'requests');
+			if (displayMode === 'remainingCredits' && budget) {
+				const remaining = Math.round(budget.remainingToday);
+				this.item.text = `${over ? '$(warning)' : '$(copilot)'} ${remaining.toLocaleString()} left today`;
+			} else {
+				// Falls back to request count if remainingCredits was picked but no monthlyCreditLimit is set.
+				this.item.text = `${over ? '$(warning)' : '$(copilot)'} ${today} today`;
+			}
 			this.item.tooltip = this.buildTooltipFrom(today, creditsToday, budget);
 			// Amber warning background once today's spend meets/exceeds today's even budget share.
 			this.item.backgroundColor = over ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;

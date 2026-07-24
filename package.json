@@ -2,7 +2,7 @@
   "name": "copilot-usage-logger",
   "displayName": "Lloyds Banking Group — Copilot Usage Logger",
   "description": "Local-only logging and classification of your Copilot Chat usage, with a dashboard by category, language, model, and day.",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "publisher": "local-dev",
   "private": true,
   "license": "UNLICENSED",
@@ -324,6 +324,16 @@
           "type": "boolean",
           "default": false,
           "description": "Pause all Copilot usage logging (passive capture and the @usage participant still run, but nothing is written to the local database). Toggle via 'Copilot Usage: Toggle Private Mode'."
+        },
+        "usageLogger.statusBarDisplay": {
+          "type": "string",
+          "enum": ["requests", "remainingCredits"],
+          "enumDescriptions": [
+            "Show today's request count.",
+            "Show remaining cost-unit budget for today (requires usageLogger.monthlyCreditLimit; falls back to request count otherwise)."
+          ],
+          "default": "requests",
+          "description": "What the status bar item's primary text shows."
         },
         "usageLogger.excludedPathGlobs": {
           "type": "array",

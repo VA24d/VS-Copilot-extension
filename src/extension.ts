@@ -202,6 +202,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			if (e.affectsConfiguration('usageLogger.privateMode')) {
 				statusBar.setPrivateMode(vscode.workspace.getConfiguration('usageLogger').get<boolean>('privateMode', false));
 			}
+			if (e.affectsConfiguration('usageLogger.statusBarDisplay')) {
+				statusBar.refresh();
+			}
 		})
 	);
 
