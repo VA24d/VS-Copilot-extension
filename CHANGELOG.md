@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.2
+
+- Add: status bar hover tooltip now shows a text progress bar and remaining cost units for today's daily budget (mirrors the dashboard's daily-budget math: remaining monthly credits ÷ remaining days in month). Falls back to a "not set" line when `usageLogger.monthlyCreditLimit` is unconfigured.
+
 ## 0.4.1
 
 - Change: status bar item now has a stable id (`usageLogger.statusBar`) and a rich Markdown hover tooltip (requests today, cost units today, all-time total) instead of a single-line string.

@@ -41,9 +41,38 @@ export class UsageStatusBar implements vscode.Disposable {
 		md.appendMarkdown(`**Copilot Usage Logger**\n\n`);
 		md.appendMarkdown(`- Requests today: **${today}**\n`);
 		md.appendMarkdown(`- Cost units today: **${Math.round(creditsToday).toLocaleString()}**\n`);
+
+		const budget = this.dailyBudgetInfo(todayStartMs, creditsToday);
+		if (budget) {
+			md.appendMarkdown(`- Daily budget: \`${budget.bar}\` ${budget.pct}% (${Math.round(creditsToday).toLocaleString()} / ${Math.round(budget.dailyBudget).toLocaleString()})\n`);
+			md.appendMarkdown(`- Remaining today: **${Math.round(budget.remainingToday).toLocaleString()}**\n`);
+		} else {
+			md.appendMarkdown(`- Daily budget: not set (\`usageLogger.monthlyCreditLimit\`)\n`);
+		}
+
 		md.appendMarkdown(`- Requests logged all-time: **${total.toLocaleString()}**\n\n`);
 		md.appendMarkdown(`Click for the full dashboard.`);
 		return md;
+	}
+
+	/** Mirrors dashboardPanel's daily-budget math: remaining monthly credits ÷ remaining days in month. */
+	private dailyBudgetInfo(todayStartMs: number, creditsToday: number): { dailyBudget: number; remainingToday: number; pct: number; bar: string } | null {
+		const monthlyCreditLimit = vscode.workspace.getConfiguration('usageLogger').get<number>('monthlyCreditLimit', 0);
+		if (!monthlyCreditLimit || monthlyCreditLimit <= 0) {
+			return null;
+		}
+		const todayStart = new Date(todayStartMs);
+		const startOfMonth = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
+		const daysInMonth = new Date(todayStart.getFullYear(), todayStart.getMonth() + 1, 0).getDate();
+		const remainingDaysInMonth = daysInMonth - todayStart.getDate() + 1;
+		const creditsThisMonth = this.db.creditsSince(startOfMonth.getTime());
+		const remainingCredits = Math.max(0, monthlyCreditLimit - creditsThisMonth);
+		const dailyBudget = remainingCredits / remainingDaysInMonth;
+		const remainingToday = Math.max(0, dailyBudget - creditsToday);
+		const pct = dailyBudget > 0 ? Math.min(100, Math.round((creditsToday / dailyBudget) * 100)) : (creditsToday > 0 ? 100 : 0);
+		const filled = Math.round(pct / 10);
+		const bar = '█'.repeat(filled) + '░'.repeat(10 - filled);
+		return { dailyBudget, remainingToday, pct, bar };
 	}
 
 	dispose(): void {
