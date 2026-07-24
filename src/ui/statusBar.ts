@@ -7,7 +7,8 @@ export class UsageStatusBar implements vscode.Disposable {
 	private privateMode = false;
 
 	constructor(private readonly db: UsageDb) {
-		this.item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+		this.item = vscode.window.createStatusBarItem('usageLogger.statusBar', vscode.StatusBarAlignment.Right, 100);
+		this.item.name = 'Copilot Usage Logger';
 		this.item.command = 'usageLogger.openDashboard';
 		this.item.tooltip = 'Copilot usage today — click for dashboard';
 		this.item.show();
@@ -28,11 +29,25 @@ export class UsageStatusBar implements vscode.Disposable {
 			this.item.tooltip = 'Copilot Usage Logger: private mode is ON — logging is paused. Click for dashboard.';
 		} else {
 			this.item.text = `$(copilot) ${today} today`;
-			this.item.tooltip = 'Copilot usage today — click for dashboard';
+			this.item.tooltip = this.buildTooltip(today, todayStart.getTime());
 		}
+	}
+
+	private buildTooltip(today: number, todayStartMs: number): vscode.MarkdownString {
+		const total = this.db.countAll();
+		const creditsToday = this.db.creditsSince(todayStartMs);
+		const md = new vscode.MarkdownString(undefined, true);
+		md.isTrusted = true;
+		md.appendMarkdown(`**Copilot Usage Logger**\n\n`);
+		md.appendMarkdown(`- Requests today: **${today}**\n`);
+		md.appendMarkdown(`- Cost units today: **${Math.round(creditsToday).toLocaleString()}**\n`);
+		md.appendMarkdown(`- Requests logged all-time: **${total.toLocaleString()}**\n\n`);
+		md.appendMarkdown(`Click for the full dashboard.`);
+		return md;
 	}
 
 	dispose(): void {
 		this.item.dispose();
 	}
 }
+

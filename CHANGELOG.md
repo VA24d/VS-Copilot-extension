@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+
+- Change: status bar item now has a stable id (`usageLogger.statusBar`) and a rich Markdown hover tooltip (requests today, cost units today, all-time total) instead of a single-line string.
+
 ## 0.4.0
 
 - Add: rich custom hover panel on the credits card (remaining/daily-budget breakdown + inline sparkline of recent daily cost-unit trend), replacing plain-text native tooltips.
