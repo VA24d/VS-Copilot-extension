@@ -32,3 +32,28 @@ export function watchChatSessionFiles(
 
 	return watcher;
 }
+
+/**
+ * Watches `globalStorage/emptyWindowChatSessions/*.jsonl` (folder-less
+ * "empty window" chat sessions) for changes. Same debounce strategy as
+ * `watchChatSessionFiles`.
+ */
+export function watchEmptyWindowChatSessionFiles(
+	emptyWindowChatSessionsDir: string,
+	onChange: ChatSessionFileChangeHandler
+): FSWatcher {
+	const globPattern = path.join(emptyWindowChatSessionsDir, '*.jsonl').split(path.sep).join('/');
+
+	const watcher = watch(globPattern, {
+		ignoreInitial: true,
+		awaitWriteFinish: {
+			stabilityThreshold: 500,
+			pollInterval: 100
+		}
+	});
+
+	watcher.on('add', onChange);
+	watcher.on('change', onChange);
+
+	return watcher;
+}

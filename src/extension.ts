@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { locateUserDataDir, workspaceStorageRoot } from './discovery/locateUserDataDir';
+import { emptyWindowChatSessionsRoot, locateUserDataDir, workspaceStorageRoot } from './discovery/locateUserDataDir';
 import { buildAuditCsv } from './export/csvExport';
 import { ingestSessionFile, type IngestOptions } from './ingest/ingestor';
 import { runInitialScan } from './ingest/initialScan';
@@ -14,7 +14,7 @@ import { registerGithubIntegration } from './knowledge/githubTools';
 import { UsageDb } from './storage/db';
 import { DashboardPanel } from './ui/dashboardPanel';
 import { UsageStatusBar } from './ui/statusBar';
-import { watchChatSessionFiles } from './watcher/fileWatcher';
+import { watchChatSessionFiles, watchEmptyWindowChatSessionFiles } from './watcher/fileWatcher';
 import type { FSWatcher } from 'chokidar';
 
 let outputChannel: vscode.OutputChannel;
@@ -41,6 +41,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
 	const userDataDir = locateUserDataDir(context);
 	const workspaceStorageDir = workspaceStorageRoot(userDataDir);
+	const emptyWindowChatSessionsDir = emptyWindowChatSessionsRoot(userDataDir);
 	const wasmPath = path.join(context.extensionUri.fsPath, 'dist', 'sql-wasm.wasm');
 	const dbFilePath = path.join(context.globalStorageUri.fsPath, 'usage.sqlite');
 
@@ -91,7 +92,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			CompanyDashboardPanel.createOrShow(context);
 		}),
 		vscode.commands.registerCommand('usageLogger.rescanHistory', async () => {
-			const summary = await runInitialScan(db, workspaceStorageDir);
+			const summary = await runInitialScan(db, workspaceStorageDir, getIngestOptions(), emptyWindowChatSessionsDir);
 			statusBar.refresh();
 			if (DashboardPanel.currentPanel) {
 				DashboardPanel.currentPanel.refresh();
@@ -132,7 +133,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			void vscode.window.showInformationMessage(`Copilot Usage Logger: private mode ${!current ? 'ON — logging paused' : 'OFF — logging resumed'}.`);
 			if (current) {
 				// Was on, now turning off: catch up on anything that happened while paused.
-				const summary = await runInitialScan(db, workspaceStorageDir, getIngestOptions());
+				const summary = await runInitialScan(db, workspaceStorageDir, getIngestOptions(), emptyWindowChatSessionsDir);
 				statusBar.refresh();
 				if (DashboardPanel.currentPanel) {
 					DashboardPanel.currentPanel.refresh();
@@ -219,7 +220,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	}
 
 	// Initial backfill so the DB isn't empty on first install, without blocking activation.
-	void runInitialScan(db, workspaceStorageDir, getIngestOptions()).then((summary) => {
+	void runInitialScan(db, workspaceStorageDir, getIngestOptions(), emptyWindowChatSessionsDir).then((summary) => {
 		outputChannel.appendLine(`Initial scan: ${summary.filesScanned} file(s), ${summary.requestsInserted} request(s) logged, ${summary.filesWithErrors} file(s) with errors.`);
 		statusBar.refresh();
 		if (DashboardPanel.currentPanel) {
@@ -228,16 +229,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	});
 
 	let watcher: FSWatcher | undefined;
+	let emptyWindowWatcher: FSWatcher | undefined;
 	if (config.get<boolean>('enablePassiveCapture', true)) {
-		watcher = watchChatSessionFiles(workspaceStorageDir, (filePath) => {
+		const onSessionFileChange = (filePath: string) => {
 			try {
 				ingestSessionFile(db, filePath, getIngestOptions());
 				scheduleFlush();
 			} catch (err) {
 				outputChannel.appendLine(`Ingest failed for ${filePath}: ${String(err)}`);
 			}
-		});
+		};
+		watcher = watchChatSessionFiles(workspaceStorageDir, onSessionFileChange);
 		context.subscriptions.push({ dispose: () => { void watcher?.close(); } });
+		emptyWindowWatcher = watchEmptyWindowChatSessionFiles(emptyWindowChatSessionsDir, onSessionFileChange);
+		context.subscriptions.push({ dispose: () => { void emptyWindowWatcher?.close(); } });
 	}
 }
 

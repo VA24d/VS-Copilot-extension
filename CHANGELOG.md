@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0
+
+- Add: **folder-less "empty window" chat session capture** — the extension now discovers, backfills, and watches `globalStorage/emptyWindowChatSessions/*.jsonl` in addition to workspace-scoped sessions, so Copilot Chat usage in windows with no folder open is no longer invisible to the dashboard/status bar. Fixes reports of the dashboard showing zero usage in empty-window setups. Parsing logic (`patchLogParser.ts`/`sessionParser.ts`) already supported this format; only discovery/watch/backfill wiring was missing.
+
 ## 0.8.0
 
 - Add: **`usageLogger.statusBarDisplay`** setting — switch the status bar item's primary text between today's request count (`requests`, default) and remaining cost-unit budget for today (`remainingCredits`). Falls back to the request count if `remainingCredits` is selected but `usageLogger.monthlyCreditLimit` isn't set. Takes effect immediately on change, no reload needed.

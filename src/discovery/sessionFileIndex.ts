@@ -48,3 +48,27 @@ export function workspaceHashFromSessionFilePath(filePath: string): string | und
 	}
 	return undefined;
 }
+
+/**
+ * Discovers `globalStorage/emptyWindowChatSessions/<id>.jsonl` files — chat
+ * history from windows with no folder/workspace open. Unlike workspace
+ * sessions, these sit directly under the given directory (no per-workspace
+ * hash subfolder).
+ */
+export function discoverEmptyWindowChatSessionFiles(emptyWindowChatSessionsDir: string): string[] {
+	let entries: fs.Dirent[];
+	try {
+		entries = fs.readdirSync(emptyWindowChatSessionsDir, { withFileTypes: true });
+	} catch {
+		return [];
+	}
+
+	const results: string[] = [];
+	for (const entry of entries) {
+		if (entry.isFile() && entry.name.endsWith('.jsonl')) {
+			results.push(path.join(emptyWindowChatSessionsDir, entry.name));
+		}
+	}
+	return results;
+}
+

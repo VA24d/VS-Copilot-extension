@@ -2,7 +2,7 @@
   "name": "copilot-usage-logger",
   "displayName": "Lloyds Banking Group — Copilot Usage Logger",
   "description": "Local-only logging and classification of your Copilot Chat usage, with a dashboard by category, language, model, and day.",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "publisher": "local-dev",
   "private": true,
   "license": "UNLICENSED",

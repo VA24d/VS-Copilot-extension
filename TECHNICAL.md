@@ -63,8 +63,8 @@ flowchart LR
 |---|---|
 | `extension.ts` | `activate()`/`deactivate()`; wires every module below, registers commands, config-change listeners. |
 | `discovery/locateUserDataDir.ts` | Derives `<user-data-dir>/User` from `context.globalStorageUri` — portable, no OS-specific hardcoding. |
-| `discovery/sessionFileIndex.ts` | Globs `workspaceStorage/*/chatSessions/*.json` (full-snapshot) and `globalStorage/emptyWindowChatSessions/*.jsonl` (patch-log). |
-| `watcher/fileWatcher.ts` | chokidar watch on both roots, `awaitWriteFinish` debounce against partial writes. |
+| `discovery/sessionFileIndex.ts` | Globs `workspaceStorage/<hash>/chatSessions/*.{json,jsonl}` and `globalStorage/emptyWindowChatSessions/*.jsonl`; both roots are discovered, backfilled, and watched. |
+| `watcher/fileWatcher.ts` | chokidar watch on both the workspace-scoped and empty-window roots (`watchChatSessionFiles` / `watchEmptyWindowChatSessionFiles`), `awaitWriteFinish` debounce against partial writes. |
 | `parser/types.ts` | Loose types reflecting the undocumented, evolving VS Code schema. |
 | `parser/sessionParser.ts` | Defensive parser for the workspace snapshot format; never throws. |
 | `parser/patchLogParser.ts` | Replays `kind:0` (snapshot) + `kind:1` (keyPath patch) events for the empty-window `.jsonl` format. |
@@ -275,9 +275,6 @@ walkthrough entry point).
 
 ## 13. Known limitations / deferred scope
 
-- `globalStorage/emptyWindowChatSessions/*.jsonl` (folder-less window chats)
-  parsing exists (`patchLogParser.ts`) but has less real-world verification
-  than the workspace snapshot path.
 - No public VS Code/GitHub API exposes org-level Copilot premium-request
   quota to third-party extensions; only per-request `copilotCredits` is
   available locally, so cross-device totals rely on the manual

@@ -1,10 +1,20 @@
 import * as vscode from 'vscode';
-import { discoverWorkspaceChatSessionFiles } from '../discovery/sessionFileIndex';
+import { discoverEmptyWindowChatSessionFiles, discoverWorkspaceChatSessionFiles } from '../discovery/sessionFileIndex';
 import type { UsageDb } from '../storage/db';
 import { ingestSessionFile, type IngestOptions, type IngestSummary } from './ingestor';
 
-/** One-time (or manually re-triggered) backfill over every discovered session file, wrapped in withProgress. */
-export async function runInitialScan(db: UsageDb, workspaceStorageDir: string, options?: IngestOptions): Promise<IngestSummary> {
+/**
+ * One-time (or manually re-triggered) backfill over every discovered
+ * session file — both workspace-scoped (`workspaceStorageDir`) and
+ * folder-less "empty window" sessions (`emptyWindowChatSessionsDir`, if
+ * given) — wrapped in withProgress.
+ */
+export async function runInitialScan(
+	db: UsageDb,
+	workspaceStorageDir: string,
+	options?: IngestOptions,
+	emptyWindowChatSessionsDir?: string
+): Promise<IngestSummary> {
 	return vscode.window.withProgress(
 		{
 			location: vscode.ProgressLocation.Notification,
@@ -12,7 +22,10 @@ export async function runInitialScan(db: UsageDb, workspaceStorageDir: string, o
 			cancellable: false
 		},
 		async (progress) => {
-			const files = discoverWorkspaceChatSessionFiles(workspaceStorageDir);
+			const files = [
+				...discoverWorkspaceChatSessionFiles(workspaceStorageDir),
+				...(emptyWindowChatSessionsDir ? discoverEmptyWindowChatSessionFiles(emptyWindowChatSessionsDir) : [])
+			];
 			const total: IngestSummary = { filesScanned: 0, requestsInserted: 0, requestsSkippedExisting: 0, filesWithErrors: 0, requestsExcluded: 0, requestsRedacted: 0 };
 
 			let done = 0;

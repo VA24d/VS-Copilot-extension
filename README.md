@@ -4,7 +4,7 @@ Local-first logging and classification of your GitHub Copilot Chat usage. Full p
 
 ## What it does
 
-- Watches VS Code's local Copilot Chat session files (`workspaceStorage/*/chatSessions/*.jsonl`, an append-only patch log — confirmed against real VS Code 1.130+ session files) and parses new requests as they happen.
+- Watches VS Code's local Copilot Chat session files — both workspace-scoped (`workspaceStorage/*/chatSessions/*.jsonl`) and folder-less "empty window" sessions (`globalStorage/emptyWindowChatSessions/*.jsonl`) — an append-only patch log format, confirmed against real VS Code 1.130+ session files — and parses new requests as they happen.
 - Classifies each request into a rough category: code-gen, debug/fix, explain, refactor, test, docs, git/terminal, search/navigate, or other.
 - Detects the primary language involved (from attached files, or fenced code blocks in the response).
 - Stores everything in a local SQLite database (`sql.js`, WASM) under the extension's global storage folder.
@@ -138,7 +138,6 @@ Run **"Copilot Usage: Setup"** for a guided menu of everything above, or open th
 ## Known limitations (MVP)
 
 - Remote windows (SSH/WSL/Codespaces) are not supported yet — the extension no-ops in remote windows.
-- Folder-less ("empty window") chat sessions (`globalStorage/emptyWindowChatSessions/*.jsonl`) are not parsed yet — only workspace-scoped sessions.
 - The undocumented chat session file format may change between VS Code versions without notice; parsing is defensive (per-line/per-patch error isolation) but may occasionally miss data on a schema shift.
 - Classification is keyword-based and rough — multi-intent prompts may be misclassified.
 - The dashboard shows the machine's hostname as a proxy for "who" (corporate hostnames often map to a specific employee) — this is a deliberate, visible-only-to-you local UI convenience, not something included in the company-wide report payload (which still uses only the anonymous per-machine `deviceId`).
