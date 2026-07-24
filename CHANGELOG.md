@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.3
+
+- Fix: daily-budget math was double-counting today's own credit spend — it was folded into the monthly remaining pool *before* dividing by days left, then subtracted again when showing "used today" / "remaining today". Now the day's even share is computed from credits used **before** today, so today's usage is only subtracted once. Affects the dashboard's "Today's budget" bar and the status bar's "Remaining today" figure (both previously understated the true daily allotment).
+
 ## 0.4.2
 
 - Add: status bar hover tooltip now shows a text progress bar and remaining cost units for today's daily budget (mirrors the dashboard's daily-budget math: remaining monthly credits ÷ remaining days in month). Falls back to a "not set" line when `usageLogger.monthlyCreditLimit` is unconfigured.

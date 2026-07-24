@@ -66,8 +66,10 @@ export class UsageStatusBar implements vscode.Disposable {
 		const daysInMonth = new Date(todayStart.getFullYear(), todayStart.getMonth() + 1, 0).getDate();
 		const remainingDaysInMonth = daysInMonth - todayStart.getDate() + 1;
 		const creditsThisMonth = this.db.creditsSince(startOfMonth.getTime());
-		const remainingCredits = Math.max(0, monthlyCreditLimit - creditsThisMonth);
-		const dailyBudget = remainingCredits / remainingDaysInMonth;
+		const creditsBeforeToday = Math.max(0, creditsThisMonth - creditsToday);
+		// dailyBudget = today's even share of what's left, computed BEFORE today's own spend is deducted —
+		// otherwise today's usage gets divided into the pool and then subtracted again below (double-counted).
+		const dailyBudget = Math.max(0, monthlyCreditLimit - creditsBeforeToday) / remainingDaysInMonth;
 		const remainingToday = Math.max(0, dailyBudget - creditsToday);
 		const pct = dailyBudget > 0 ? Math.min(100, Math.round((creditsToday / dailyBudget) * 100)) : (creditsToday > 0 ? 100 : 0);
 		const filled = Math.round(pct / 10);

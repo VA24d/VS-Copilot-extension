@@ -70,8 +70,11 @@ export class DashboardPanel {
 
 		const creditsThisMonth = this.db.creditsSince(startOfMonth.getTime());
 		const creditsToday = this.db.creditsSince(startOfToday.getTime());
+		const creditsBeforeToday = Math.max(0, creditsThisMonth - creditsToday);
 		const remainingCredits = monthlyCreditLimit > 0 ? Math.max(0, monthlyCreditLimit - creditsThisMonth) : null;
-		const dailyBudget = remainingCredits !== null ? remainingCredits / remainingDaysInMonth : null;
+		// dailyBudget = today's even share of what's left, computed BEFORE today's own spend is deducted —
+		// otherwise today's usage gets divided into the pool and then subtracted again downstream (double-counted).
+		const dailyBudget = monthlyCreditLimit > 0 ? Math.max(0, monthlyCreditLimit - creditsBeforeToday) / remainingDaysInMonth : null;
 
 		const modelFit = summarizeModelFit(this.db.listCategoryModelPairs());
 		const timeSavings = estimateTimeSavings(this.db.categoryCounts(), minutesPerCategory);
@@ -223,7 +226,7 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 			<div id="creditsLimitBar"></div>
 			<div id="creditsDailyBar"></div>
 			<div id="creditsTrend" class="trend-row"></div>
-			<div class="footnote">"Cost units" = the <code>copilotCredits</code> value VS Code reports per request. This is a relative cost signal, not guaranteed to exactly match GitHub's official Copilot Business/Enterprise premium-request billing meter. Set <code>usageLogger.monthlyCreditLimit</code> to track against your org's allowance. Hover the numbers above for remaining/daily-budget detail. "Today's budget" = remaining credits this month \u00f7 remaining days in month.</div>
+			<div class="footnote">"Cost units" = the <code>copilotCredits</code> value VS Code reports per request. This is a relative cost signal, not guaranteed to exactly match GitHub's official Copilot Business/Enterprise premium-request billing meter. Set <code>usageLogger.monthlyCreditLimit</code> to track against your org's allowance. Hover the numbers above for remaining/daily-budget detail. "Today's budget" = (monthly limit − credits used before today) ÷ remaining days in month.</div>
 		</div>
 		<div class="card">
 			<h2>Model fit</h2>
@@ -319,7 +322,7 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 			const pct = dailyBudget > 0 ? Math.min(100, Math.round((today / dailyBudget) * 100)) : (today > 0 ? 100 : 0);
 			const cls = pct >= 100 ? 'over' : (pct >= 80 ? 'warn' : '');
 			const resetsStr = new Date(credits.resetsOn).toLocaleDateString();
-			const title = 'Daily budget: ' + Math.round(dailyBudget).toLocaleString() + '/day (remaining ' + Math.round(credits.remaining).toLocaleString() + ' \u00f7 ' + credits.remainingDaysInMonth + ' days left). Used today: ' + Math.round(today).toLocaleString() + '. Resets ' + resetsStr + '.';
+			const title = 'Daily budget: ' + Math.round(dailyBudget).toLocaleString() + '/day (credits left before today\u2019s spend, spread over ' + credits.remainingDaysInMonth + ' day(s) left). Used today: ' + Math.round(today).toLocaleString() + '. Resets ' + resetsStr + '.';
 			el.innerHTML =
 				'<div class="bar-row" title="' + title + '"><div class="bar-label">Today\u2019s budget</div>' +
 				'<div class="bar-track"><div class="bar-fill ' + cls + '" style="width:' + pct + '%"></div></div>' +
