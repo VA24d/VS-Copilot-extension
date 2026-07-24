@@ -2,7 +2,7 @@
   "name": "copilot-usage-logger",
   "displayName": "Lloyds Banking Group — Copilot Usage Logger",
   "description": "Local-only logging and classification of your Copilot Chat usage, with a dashboard by category, language, model, and day.",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "publisher": "local-dev",
   "private": true,
   "license": "UNLICENSED",
@@ -94,6 +94,18 @@
       {
         "command": "usageLogger.clearGithubToken",
         "title": "Copilot Usage: Clear GitHub Token"
+      },
+      {
+        "command": "usageLogger.setGraphToken",
+        "title": "Copilot Usage: Set Microsoft Graph Token"
+      },
+      {
+        "command": "usageLogger.clearGraphToken",
+        "title": "Copilot Usage: Clear Microsoft Graph Token"
+      },
+      {
+        "command": "usageLogger.testGraphConnection",
+        "title": "Copilot Usage: Test Microsoft Graph Connection"
       },
       {
         "command": "usageLogger.runSetup",
@@ -259,6 +271,66 @@
             "limit": {
               "type": "number",
               "description": "Maximum number of results to return (1-20). Defaults to 5."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "search_sharepoint",
+        "displayName": "Search SharePoint",
+        "modelDescription": "Search the organization's SharePoint/OneDrive documents (via Microsoft Graph) for files matching a free-text query. Use this to ground answers in internal documents, spreadsheets, and presentations that live in SharePoint rather than Confluence or the codebase. Returns a list of matching documents, each with a name, a short summary snippet, last-modified date, and URL. Requires the user to have stored a Microsoft Graph access token with Sites.Read.All (or Files.Read.All) permission.",
+        "userDescription": "Search your organization's SharePoint documents to answer questions using internal files.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "sharepoint",
+        "icon": "$(files)",
+        "tags": [
+          "sharepoint",
+          "knowledge",
+          "documentation"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Free-text search terms describing the document(s) to find (e.g. 'Q3 payments incident postmortem')."
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of documents to return (1-25). Defaults to 5."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      },
+      {
+        "name": "search_teams",
+        "displayName": "Search Microsoft Teams",
+        "modelDescription": "Search the organization's Microsoft Teams chat and channel messages (via Microsoft Graph) matching a free-text query. Use this to ground answers in team discussions/decisions that aren't written down anywhere else. Returns a list of matching messages, each with the sender, a plain-text snippet, timestamp, and a deep link URL. Requires the user to have stored a Microsoft Graph access token with Chat.Read and/or ChannelMessage.Read.All permission.",
+        "userDescription": "Search your organization's Microsoft Teams messages to answer questions using team discussions.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "teams",
+        "icon": "$(comment-discussion)",
+        "tags": [
+          "teams",
+          "knowledge",
+          "chat"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Free-text search terms describing the message(s) to find (e.g. 'decision on retry backoff strategy')."
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of messages to return (1-25). Defaults to 5."
             }
           },
           "required": [
@@ -436,6 +508,17 @@
             },
             "completionEvents": [
               "onCommand:usageLogger.setGithubToken"
+            ]
+          },
+          {
+            "id": "usageLogger.step.graph",
+            "title": "Connect SharePoint & Teams (optional)",
+            "description": "Ground chat answers in your org's SharePoint documents and Teams messages via Microsoft Graph.\n[Set Microsoft Graph Token](command:usageLogger.setGraphToken)",
+            "media": {
+              "markdown": "media/walkthrough/graph.md"
+            },
+            "completionEvents": [
+              "onCommand:usageLogger.setGraphToken"
             ]
           }
         ]

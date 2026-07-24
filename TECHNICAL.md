@@ -91,6 +91,7 @@ flowchart LR
 | `knowledge/confluenceClient.ts`, `confluenceText.ts`, `confluenceTools.ts` | `search_confluence` / `get_confluence_page` language model tools. |
 | `knowledge/jiraClient.ts`, `jiraText.ts`, `jiraTools.ts` | `search_jira` / `get_jira_issue` language model tools. |
 | `knowledge/githubClient.ts`, `githubText.ts`, `githubTools.ts` | `search_github` language model tool (PAT-based, `Authorization: Bearer`). |
+| `knowledge/graphText.ts`, `graphClient.ts`, `graphTools.ts` | `search_sharepoint` / `search_teams` language model tools, via Microsoft Graph `/search/query` (Bearer token, short-lived, no OAuth refresh flow). |
 | `util/globMatch.ts` | (privacy) glob helper, also reused for path exclusion. |
 
 Pure logic used by unit tests (classifier, language detector, glob matching,
@@ -202,12 +203,15 @@ finalized contribution point):
 | `search_confluence`, `get_confluence_page` | Confluence Cloud REST API | Atlassian email + API token (Basic auth) |
 | `search_jira`, `get_jira_issue` | Jira Cloud REST API | Same Atlassian email + API token as Confluence |
 | `search_github` | GitHub REST/code search API | Personal access token, `Authorization: Bearer`, optionally scoped by `usageLogger.githubOrg` |
+| `search_sharepoint`, `search_teams` | Microsoft Graph `/search/query` (`entityTypes: ["driveItem"]` / `["chatMessage"]`) | Microsoft Graph access token (delegated), `Authorization: Bearer` — short-lived (~1h), no refresh flow; user re-runs the set-token command periodically |
 
 Security posture (applies to all three): HTTPS-only (`httpJson.ts` refuses
 `http://`), 5MB response cap, 10s default timeout, tokens stored in
 `context.secrets` (never in settings.json, never logged), read-only
 operations only, and results are bounded by the underlying service's own
-permissions (no privilege escalation).
+permissions (no privilege escalation). The SharePoint/Teams tools share a
+single Graph token the same way Confluence/Jira share one Atlassian token,
+via the shared `httpPostJson` helper (Graph search is POST, not GET).
 
 ## 10. Configuration surface (`contributes.configuration`)
 

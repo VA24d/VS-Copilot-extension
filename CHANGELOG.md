@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.10.0
+
+- Add: **SharePoint and Microsoft Teams knowledge tools** — `search_sharepoint` (`#sharepoint`) and `search_teams` (`#teams`) ground chat answers in your org's SharePoint documents and Teams messages via Microsoft Graph's `/search/query` API. One Graph access token authenticates both. Store it via "Copilot Usage: Set Microsoft Graph Token"; verify with "Copilot Usage: Test Microsoft Graph Connection". Read-only, HTTPS-only, permission-honoring — same posture as the Confluence/Jira/GitHub tools. Note: Graph tokens are short-lived (~1h) with no built-in refresh flow, unlike the other integrations' long-lived tokens.
+
 ## 0.9.0
 
 - Add: **folder-less "empty window" chat session capture** — the extension now discovers, backfills, and watches `globalStorage/emptyWindowChatSessions/*.jsonl` in addition to workspace-scoped sessions, so Copilot Chat usage in windows with no folder open is no longer invisible to the dashboard/status bar. Fixes reports of the dashboard showing zero usage in empty-window setups. Parsing logic (`patchLogParser.ts`/`sessionParser.ts`) already supported this format; only discovery/watch/backfill wiring was missing.

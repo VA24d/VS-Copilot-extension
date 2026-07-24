@@ -131,6 +131,21 @@ Search your org's GitHub beyond the open workspace — via `#github` or agent mo
 
 Setup: run **"Copilot Usage: Set GitHub Token"** to store a personal access token (classic or fine-grained; code search requires an authenticated token) in secret storage. Optionally set `usageLogger.githubOrg` to scope every search to one organization. Read-only; honors the token's own permissions; token never logged.
 
+## SharePoint & Microsoft Teams knowledge tools (chat)
+
+Two more tools ground answers in your organization's SharePoint documents and Microsoft Teams messages (via Microsoft Graph) — via `#sharepoint` / `#teams` or agent mode:
+
+- `search_sharepoint` — free-text search of SharePoint/OneDrive documents; returns name, summary snippet, last-modified date, url.
+- `search_teams` — free-text search of Teams chat/channel messages; returns sender, plain-text snippet, timestamp, url (deep link).
+
+Setup:
+
+1. Get a Microsoft Graph access token (delegated), e.g. `az account get-access-token --resource https://graph.microsoft.com --query accessToken -o tsv`. Requires `Sites.Read.All`/`Files.Read.All` for SharePoint and `Chat.Read`/`ChannelMessage.Read.All` for Teams.
+2. Run **"Copilot Usage: Set Microsoft Graph Token"** to store it securely (secret storage, never `settings.json`).
+3. Optionally run **"Copilot Usage: Test Microsoft Graph Connection"** to verify.
+
+Security/behavior notes: same posture as the other knowledge tools — HTTPS-only, read-only (`/search/query` only), size-capped, token never logged, and results honor whatever the token's account can already see in SharePoint/Teams. **One important difference**: Graph access tokens are short-lived (typically ~1 hour), unlike the GitHub/Atlassian tokens — there's no OAuth refresh flow built in, so you'll need to re-run the set-token command with a fresh token periodically.
+
 ## Getting started
 
 Run **"Copilot Usage: Setup"** for a guided menu of everything above, or open the **Copilot Usage Logger — Getting Started** walkthrough (Help → Get Started).

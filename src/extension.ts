@@ -9,8 +9,9 @@ import { CompanyDashboardPanel } from './reporting/companyDashboardPanel';
 import { syncActualCreditsUsed } from './reporting/creditsSync';
 import { ReportingService } from './reporting/reportingService';
 import { registerConfluenceIntegration } from './knowledge/confluenceTools';
-import { registerJiraIntegration } from './knowledge/jiraTools';
 import { registerGithubIntegration } from './knowledge/githubTools';
+import { registerGraphIntegration } from './knowledge/graphTools';
+import { registerJiraIntegration } from './knowledge/jiraTools';
 import { UsageDb } from './storage/db';
 import { DashboardPanel } from './ui/dashboardPanel';
 import { UsageStatusBar } from './ui/statusBar';
@@ -80,6 +81,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	registerJiraIntegration(context);
 
 	registerGithubIntegration(context);
+
+	registerGraphIntegration(context);
 
 	const reportingService = new ReportingService(context, db, outputChannel);
 	context.subscriptions.push(reportingService);
@@ -159,6 +162,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					{ label: '$(bug) Configure Jira base URL', setting: 'usageLogger.jiraBaseUrl' },
 					{ label: '$(github) Set GitHub token', command: 'usageLogger.setGithubToken' },
 					{ label: '$(organization) Set GitHub org scope', setting: 'usageLogger.githubOrg' },
+					{ label: '$(cloud) Set Microsoft Graph token (SharePoint/Teams)', command: 'usageLogger.setGraphToken' },
 					{ label: '$(database) Set MongoDB connection string', command: 'usageLogger.setMongoConnectionString' }
 				],
 				{ title: 'Copilot Usage Logger — Setup', placeHolder: 'Pick something to configure' }
