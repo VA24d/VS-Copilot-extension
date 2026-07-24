@@ -6,6 +6,8 @@ node_modules/**
 .vscode-test/**
 .vscode/**
 .github/**
+src/**/*.test.ts
+vitest.config.*
 .gitignore
 esbuild.js
 tsconfig.json

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+- Add: rich custom hover panel on the credits card (remaining/daily-budget breakdown + inline sparkline of recent daily cost-unit trend), replacing plain-text native tooltips.
+- Fix: daily trend queries (`groupByDay`, `creditsByDay`) now bucket by local calendar day instead of UTC, matching the daily-budget bar's "today" boundary.
+- Add: `LICENSE` (proprietary, all rights reserved) and `license: UNLICENSED` in package.json.
+- Add: unit test suite (vitest) covering classifier, language detector, model-fit/time-savings heuristics, company aggregation, glob matching, and sensitive-label detection; wired into a new CI workflow (type-check + lint + tests on every push/PR) and into the release workflow (tests must pass before a tagged release is packaged).
+
 ## 0.3.0
 
 - Add: hover tooltips on the credits card show remaining balance, daily budget, and reset date.

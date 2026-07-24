@@ -242,7 +242,7 @@ export class UsageDb {
 	groupByDay(days: number): Array<{ day: string; count: number }> {
 		const since = Date.now() - days * 24 * 60 * 60 * 1000;
 		return this.rows(`
-			SELECT strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch') AS day, COUNT(*) AS count
+			SELECT strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch', 'localtime') AS day, COUNT(*) AS count
 			FROM requests
 			WHERE timestamp >= ${since}
 			GROUP BY day
@@ -267,11 +267,11 @@ export class UsageDb {
 		}
 	}
 
-	/** Daily cost-unit trend for the last N days (companion to groupByDay's request-count trend). */
+	/** Daily cost-unit trend for the last N days (companion to groupByDay's request-count trend). Bucketed by local calendar day, matching the dashboard's "today" boundary. */
 	creditsByDay(days: number): Array<{ day: string; credits: number }> {
 		const since = Date.now() - days * 24 * 60 * 60 * 1000;
 		return this.rows(`
-			SELECT strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch') AS day, COALESCE(SUM(copilot_credits), 0) AS credits
+			SELECT strftime('%Y-%m-%d', timestamp / 1000, 'unixepoch', 'localtime') AS day, COALESCE(SUM(copilot_credits), 0) AS credits
 			FROM requests
 			WHERE timestamp >= ${since}
 			GROUP BY day

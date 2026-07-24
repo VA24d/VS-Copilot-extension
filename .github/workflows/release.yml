@@ -24,6 +24,9 @@ jobs:
       - name: Type-check
         run: npx tsc --noEmit
 
+      - name: Unit tests
+        run: npx vitest run
+
       - name: Package extension
         run: npx @vscode/vsce package --no-dependencies --allow-missing-repository --allow-star-activation
 

@@ -2,9 +2,10 @@
   "name": "copilot-usage-logger",
   "displayName": "Lloyds Banking Group — Copilot Usage Logger",
   "description": "Local-only logging and classification of your Copilot Chat usage, with a dashboard by category, language, model, and day.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "publisher": "local-dev",
   "private": true,
+  "license": "UNLICENSED",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
@@ -176,6 +177,7 @@
     "check-types": "tsc --noEmit",
     "compile-tests": "tsc -p . --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "test": "vitest run",
     "lint": "eslint src",
     "vsce-package": "vsce package"
   },
@@ -188,7 +190,8 @@
     "@vscode/vsce": "^2.27.0",
     "esbuild": "^0.21.0",
     "eslint": "^8.57.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.10"
   },
   "dependencies": {
     "chokidar": "^3.6.0",

@@ -170,7 +170,27 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 	.trend-row { display: flex; align-items: flex-end; gap: 3px; height: 80px; margin-top: 8px; }
 	.trend-bar { flex: 1; background: var(--vscode-charts-blue, #3794ff); border-radius: 2px 2px 0 0; min-height: 2px; }
 	.trend-bar.credits { background: var(--vscode-charts-purple, #b180d7); }
-	.stat[title] { cursor: help; }
+	.tooltip-wrap { position: relative; cursor: help; }
+	.tooltip-popup {
+		display: none;
+		position: absolute;
+		left: 0;
+		top: calc(100% + 6px);
+		background: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+		border: 1px solid var(--vscode-editorHoverWidget-border, var(--vscode-panel-border));
+		border-radius: 6px;
+		padding: 10px 12px;
+		font-weight: normal;
+		font-size: 0.85em;
+		white-space: nowrap;
+		z-index: 20;
+		box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+	}
+	.tooltip-wrap:hover .tooltip-popup { display: block; }
+	.tooltip-row { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 3px; }
+	.tooltip-row .k { opacity: 0.65; margin-right: 12px; }
+	.tooltip-sparkline-label { opacity: 0.65; margin-top: 6px; margin-bottom: 2px; }
+	.tooltip-popup svg { display: block; }
 </style>
 </head>
 <body>
@@ -197,8 +217,8 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 		<div class="card">
 			<h2>Copilot cost units</h2>
 			<div class="stat-row">
-				<div class="stat"><div class="value" id="creditsMonth">–</div><div class="label">used this calendar month</div></div>
-				<div class="stat"><div class="value" id="creditsTotal">–</div><div class="label">used all-time (logged history)</div></div>
+				<div class="stat tooltip-wrap"><div class="value" id="creditsMonth">–</div><div class="label">used this calendar month</div><div class="tooltip-popup" id="creditsMonthTooltip"></div></div>
+				<div class="stat tooltip-wrap"><div class="value" id="creditsTotal">–</div><div class="label">used all-time (logged history)</div><div class="tooltip-popup" id="creditsTotalTooltip"></div></div>
 			</div>
 			<div id="creditsLimitBar"></div>
 			<div id="creditsDailyBar"></div>
@@ -306,6 +326,52 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 				'<div class="bar-count">' + Math.round(today).toLocaleString() + '/' + Math.round(dailyBudget).toLocaleString() + '</div></div>';
 		}
 
+		function renderSparkline(values, width, height) {
+			width = width || 150; height = height || 32;
+			if (!values || values.length === 0) { return '<div class="empty" style="font-size:0.9em;">No trend data yet.</div>'; }
+			const max = Math.max.apply(null, values.concat([1]));
+			const min = Math.min.apply(null, values.concat([0]));
+			const range = Math.max(max - min, 1);
+			const stepX = values.length > 1 ? width / (values.length - 1) : width;
+			const points = values.map(function (v, i) {
+				const x = i * stepX;
+				const y = height - ((v - min) / range) * height;
+				return x.toFixed(1) + ',' + y.toFixed(1);
+			}).join(' ');
+			return '<svg width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">' +
+				'<polyline points="' + points + '" fill="none" stroke="var(--vscode-charts-purple, #b180d7)" stroke-width="1.5" /></svg>';
+		}
+
+		function tooltipRow(label, value) {
+			return '<div class="tooltip-row"><span class="k">' + label + '</span><span class="v">' + value + '</span></div>';
+		}
+
+		function renderCreditsTooltip(credits) {
+			const el = document.getElementById('creditsMonthTooltip');
+			let html = '';
+			if (credits.monthlyLimit > 0) {
+				html += tooltipRow('Remaining this month', Math.round(credits.remaining).toLocaleString());
+				html += tooltipRow('Daily budget', Math.round(credits.dailyBudget).toLocaleString() + '/day');
+				html += tooltipRow('Days left in month', String(credits.remainingDaysInMonth));
+				html += tooltipRow('Used today', Math.round(credits.today).toLocaleString());
+				html += tooltipRow('Resets', new Date(credits.resetsOn).toLocaleDateString());
+			} else {
+				html += tooltipRow('Monthly limit', 'not set');
+				html += tooltipRow('Used today', Math.round(credits.today).toLocaleString());
+			}
+			const recentDays = (credits.byDay || []).slice(-14);
+			if (recentDays.length > 1) {
+				html += '<div class="tooltip-sparkline-label">Last ' + recentDays.length + ' days</div>';
+				html += renderSparkline(recentDays.map(function (r) { return r.credits; }));
+			}
+			el.innerHTML = html;
+
+			const totalEl = document.getElementById('creditsTotalTooltip');
+			totalEl.innerHTML =
+				tooltipRow('All-time total', Math.round(credits.total).toLocaleString()) +
+				'<div class="tooltip-sparkline-label" style="max-width:220px; white-space:normal;">Sum of every logged request\u2019s copilotCredits value on this machine.</div>';
+		}
+
 		function renderModelFit(fit) {
 			const el = document.getElementById('modelFit');
 			if (!fit || fit.total === 0) {
@@ -354,16 +420,7 @@ function getHtml(webview: vscode.Webview, logoUri: vscode.Uri): string {
 			const creditsTotalEl = document.getElementById('creditsTotal');
 			creditsMonthEl.textContent = Math.round(msg.credits.thisMonth).toLocaleString();
 			creditsTotalEl.textContent = Math.round(msg.credits.total).toLocaleString();
-			if (msg.credits.monthlyLimit > 0) {
-				const resetsStr = new Date(msg.credits.resetsOn).toLocaleDateString();
-				creditsMonthEl.title = 'Remaining: ' + Math.round(msg.credits.remaining).toLocaleString() +
-					' \u00b7 Daily budget: ' + Math.round(msg.credits.dailyBudget).toLocaleString() + '/day (' + msg.credits.remainingDaysInMonth + ' days left)' +
-					' \u00b7 Used today: ' + Math.round(msg.credits.today).toLocaleString() +
-					' \u00b7 Resets ' + resetsStr;
-			} else {
-				creditsMonthEl.title = 'Set usageLogger.monthlyCreditLimit to see remaining/daily-budget stats.';
-			}
-			creditsTotalEl.title = 'Sum of copilotCredits across all logged history on this machine.';
+			renderCreditsTooltip(msg.credits);
 			renderCreditsLimit(msg.credits.thisMonth, msg.credits.monthlyLimit, msg.credits.remaining);
 			renderDailyBudget(msg.credits);
 			renderTrend('creditsTrend', msg.credits.byDay, 'credits', 'credits');
