@@ -1,0 +1,113 @@
+{
+  "$schema-note": "Sample 'blocker directory' for the find_help skill. Copy this, edit the entries to match your org's real owners/links, then point usageLogger.blockerDirectoryPath at your copy (or paste entries into the usageLogger.blockerDirectory setting). All links must be https/http/msteams/mailto; anything else is dropped. Everything here is a placeholder.",
+  "routes": [
+    {
+      "title": "GCP project / IAM access",
+      "category": "access",
+      "keywords": ["gcp", "google cloud", "iam", "project access", "service account", "bigquery", "gke", "permission denied"],
+      "summary": "Getting or elevating access to a GCP project, dataset, or resource.",
+      "contact": "Cloud Platform Engineering",
+      "teamsLink": "https://teams.microsoft.com/l/channel/REPLACE/Cloud%20Platform",
+      "serviceNowUrl": "https://REPLACE.service-now.com/sp?id=sc_cat_item&sys_id=REPLACE_GCP_ACCESS",
+      "url": "https://confluence.REPLACE/display/PLATFORM/GCP+Access+Requests",
+      "steps": [
+        "Raise the 'GCP Access Request' item in the ServiceNow catalogue.",
+        "Have your line manager approve the request.",
+        "Post in the Cloud Platform Teams channel if it's blocking a release."
+      ]
+    },
+    {
+      "title": "VPN / network connectivity",
+      "category": "environment",
+      "keywords": ["vpn", "network", "cannot connect", "connectivity", "proxy", "firewall", "timeout", "unreachable"],
+      "summary": "VPN not connecting, corporate proxy issues, or a host that won't resolve/route.",
+      "contact": "IT Service Desk",
+      "serviceNowUrl": "https://REPLACE.service-now.com/sp?id=sc_cat_item&sys_id=REPLACE_VPN",
+      "url": "https://confluence.REPLACE/display/IT/VPN+Troubleshooting",
+      "steps": [
+        "Check the IT status page for a known outage first.",
+        "Reconnect the VPN client / restart the machine.",
+        "If still blocked, raise a 'Network Connectivity' incident."
+      ]
+    },
+    {
+      "title": "Confluence / Jira access",
+      "category": "access",
+      "keywords": ["confluence", "jira", "wiki", "atlassian", "space access", "board access", "ticket permissions"],
+      "summary": "Access to a Confluence space or Jira project/board.",
+      "contact": "Atlassian Tooling Team",
+      "teamsLink": "https://teams.microsoft.com/l/channel/REPLACE/Atlassian%20Tooling",
+      "serviceNowUrl": "https://REPLACE.service-now.com/sp?id=sc_cat_item&sys_id=REPLACE_ATLASSIAN",
+      "url": "https://confluence.REPLACE/display/TOOLS/Requesting+Access"
+    },
+    {
+      "title": "GitHub org / repository access",
+      "category": "access",
+      "keywords": ["github", "repo access", "repository", "org access", "pull request", "cannot push", "sso", "saml"],
+      "summary": "Joining the GitHub org, repo permissions, or authorising SSO for the org.",
+      "contact": "Developer Experience (DevEx)",
+      "teamsLink": "https://teams.microsoft.com/l/channel/REPLACE/DevEx",
+      "serviceNowUrl": "https://REPLACE.service-now.com/sp?id=sc_cat_item&sys_id=REPLACE_GITHUB",
+      "url": "https://confluence.REPLACE/display/DEVEX/GitHub+Onboarding"
+    },
+    {
+      "title": "Copilot licence / premium requests",
+      "category": "tooling",
+      "keywords": ["copilot", "licence", "license", "premium request", "seat", "quota", "usage limit"],
+      "summary": "Requesting a Copilot seat, or questions about premium-request allowance/quota.",
+      "contact": "Developer Experience (DevEx)",
+      "teamsLink": "https://teams.microsoft.com/l/channel/REPLACE/DevEx",
+      "serviceNowUrl": "https://REPLACE.service-now.com/sp?id=sc_cat_item&sys_id=REPLACE_COPILOT"
+    },
+    {
+      "title": "Local dev environment setup",
+      "category": "onboarding",
+      "keywords": ["environment", "setup", "new joiner", "onboarding", "getting started", "local build", "dependencies", "toolchain"],
+      "summary": "First-time environment setup, toolchain install, and getting a local build running.",
+      "contact": "Your squad's onboarding buddy",
+      "url": "https://confluence.REPLACE/display/ONBOARD/Developer+Setup+Guide",
+      "steps": [
+        "Follow the Developer Setup Guide top to bottom.",
+        "Ask your assigned onboarding buddy for anything environment-specific.",
+        "Raise a ticket only if a step needs an access you can't self-serve."
+      ]
+    },
+    {
+      "title": "Production incident / on-call",
+      "category": "incident",
+      "keywords": ["incident", "outage", "production down", "sev1", "sev2", "on call", "pager", "escalate"],
+      "summary": "Something is broken in production and needs escalation to on-call.",
+      "contact": "On-call via the incident channel",
+      "teamsLink": "https://teams.microsoft.com/l/channel/REPLACE/Incident%20Bridge",
+      "url": "https://confluence.REPLACE/display/SRE/Incident+Response"
+    },
+    {
+      "title": "Security review / vulnerability report",
+      "category": "security",
+      "keywords": ["security", "vulnerability", "pen test", "threat model", "secret leaked", "cve", "appsec", "review"],
+      "summary": "Requesting a security review, or reporting a vulnerability or leaked secret.",
+      "contact": "Application Security (AppSec)",
+      "teamsLink": "https://teams.microsoft.com/l/channel/REPLACE/AppSec",
+      "serviceNowUrl": "https://REPLACE.service-now.com/sp?id=sc_cat_item&sys_id=REPLACE_SECREVIEW",
+      "url": "https://confluence.REPLACE/display/SEC/Report+a+Vulnerability"
+    },
+    {
+      "title": "Hardware / software procurement",
+      "category": "it",
+      "keywords": ["laptop", "hardware", "software request", "licence request", "install", "admin rights", "procurement"],
+      "summary": "New/replacement hardware, or installing licensed software that needs approval.",
+      "contact": "IT Service Desk",
+      "serviceNowUrl": "https://REPLACE.service-now.com/sp?id=sc_cat_item&sys_id=REPLACE_PROCUREMENT",
+      "url": "https://REPLACE.service-now.com/sp?id=sc_home"
+    },
+    {
+      "title": "HR / people questions",
+      "category": "hr",
+      "keywords": ["hr", "leave", "holiday", "payroll", "benefits", "manager", "expenses", "policy"],
+      "summary": "Leave, payroll, benefits, expenses, or general people/policy questions.",
+      "contact": "People Services",
+      "url": "https://confluence.REPLACE/display/HR/People+Services",
+      "serviceNowUrl": "https://REPLACE.service-now.com/sp?id=sc_category&sys_id=REPLACE_HR"
+    }
+  ]
+}

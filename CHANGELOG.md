@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.0
+
+- Add: **`find_help` "who to contact" skill** (`#findHelp`) — for any **non-code** blocker (access, permissions, a broken/unfamiliar environment, a tooling or process question, onboarding, "who owns X / who do I ask"), chat routes the user to the sanctioned contact, Microsoft Teams chat, intranet/wiki page, and/or ServiceNow catalogue item from a **local, org-curated directory**. Purely local and read-only — no network, no credentials. Configure via `usageLogger.blockerDirectoryPath` (a JSON file you can commit in-repo) or the inline `usageLogger.blockerDirectory` setting; run "Copilot Usage: Open Help Directory" to scaffold one from the bundled sample. Only `https`/`http`/`msteams`/`mailto` links are surfaced (unsafe schemes dropped defensively).
+
 ## 0.10.0
 
 - Add: **SharePoint and Microsoft Teams knowledge tools** — `search_sharepoint` (`#sharepoint`) and `search_teams` (`#teams`) ground chat answers in your org's SharePoint documents and Teams messages via Microsoft Graph's `/search/query` API. One Graph access token authenticates both. Store it via "Copilot Usage: Set Microsoft Graph Token"; verify with "Copilot Usage: Test Microsoft Graph Connection". Read-only, HTTPS-only, permission-honoring — same posture as the Confluence/Jira/GitHub tools. Note: Graph tokens are short-lived (~1h) with no built-in refresh flow, unlike the other integrations' long-lived tokens.

@@ -2,7 +2,7 @@
   "name": "copilot-usage-logger",
   "displayName": "Lloyds Banking Group — Copilot Usage Logger",
   "description": "Local-only logging and classification of your Copilot Chat usage, with a dashboard by category, language, model, and day.",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "publisher": "local-dev",
   "private": true,
   "license": "UNLICENSED",
@@ -106,6 +106,10 @@
       {
         "command": "usageLogger.testGraphConnection",
         "title": "Copilot Usage: Test Microsoft Graph Connection"
+      },
+      {
+        "command": "usageLogger.openBlockerDirectory",
+        "title": "Copilot Usage: Open Help Directory"
       },
       {
         "command": "usageLogger.runSetup",
@@ -337,6 +341,37 @@
             "query"
           ]
         }
+      },
+      {
+        "name": "find_help",
+        "displayName": "Find Help / Who to Contact",
+        "modelDescription": "Route a NON-CODE blocker to the right person, team, page, or self-service link. Use this whenever the user is stuck on something that isn't a code problem — they need access or a permission, hit a broken or unfamiliar environment, have a tooling or process question, are onboarding, or ask 'who owns X / who do I ask / where do I request Y'. Do NOT use it for code, debugging, or documentation lookups (use the other tools for those). Matches the described blocker against the org's curated, local directory and returns the sanctioned contact, Microsoft Teams chat link, intranet/wiki page, and/or ServiceNow catalogue item, plus any recommended steps. Purely local and read-only (no network, no credentials). Always prefer pointing the user at a returned contact/link over guessing.",
+        "userDescription": "When you hit a non-code blocker (access, permissions, environment, tooling, onboarding, 'who do I ask?'), get pointed at the right contact, Teams chat, page, or ServiceNow item.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "findHelp",
+        "icon": "$(question)",
+        "tags": [
+          "help",
+          "onboarding",
+          "access",
+          "support"
+        ],
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Free-text description of the blocker (e.g. 'need access to the GCP payments project', 'VPN won't connect', 'who owns the Confluence space for onboarding')."
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of routing suggestions to return (1-10). Defaults to 3."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
       }
     ],
     "configuration": {
@@ -457,6 +492,19 @@
           "type": "string",
           "default": "",
           "description": "Optional GitHub organization/login to scope the search_github chat tool to (e.g. 'my-company'). Leave empty to search across everything the token can see."
+        },
+        "usageLogger.blockerDirectoryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to a JSON file holding your org's 'help directory' for the find_help chat tool — the curated list of who-to-contact / Teams / ServiceNow / page links for non-code blockers. Absolute, or relative to the first workspace folder (so a team can commit it in-repo). Run 'Copilot Usage: Open Help Directory' to scaffold one from the bundled sample. If empty and no inline directory is set, a built-in sample is used."
+        },
+        "usageLogger.blockerDirectory": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "default": [],
+          "description": "Inline 'help directory' entries for the find_help chat tool (alternative to usageLogger.blockerDirectoryPath). Each entry: { title, keywords[], and optionally category, summary, contact, teamsLink, serviceNowUrl, url, steps[] }. Only https/http/msteams/mailto links are surfaced."
         }
       }
     },
@@ -519,6 +567,17 @@
             },
             "completionEvents": [
               "onCommand:usageLogger.setGraphToken"
+            ]
+          },
+          {
+            "id": "usageLogger.step.blocker",
+            "title": "Route blockers to the right person (optional)",
+            "description": "Let chat point stuck developers at the right contact, Teams chat, page, or ServiceNow item for non-code blockers. Start from the bundled sample and make it yours.\n[Open Help Directory](command:usageLogger.openBlockerDirectory)",
+            "media": {
+              "markdown": "media/walkthrough/blocker.md"
+            },
+            "completionEvents": [
+              "onCommand:usageLogger.openBlockerDirectory"
             ]
           }
         ]

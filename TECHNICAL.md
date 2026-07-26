@@ -92,6 +92,7 @@ flowchart LR
 | `knowledge/jiraClient.ts`, `jiraText.ts`, `jiraTools.ts` | `search_jira` / `get_jira_issue` language model tools. |
 | `knowledge/githubClient.ts`, `githubText.ts`, `githubTools.ts` | `search_github` language model tool (PAT-based, `Authorization: Bearer`). |
 | `knowledge/graphText.ts`, `graphClient.ts`, `graphTools.ts` | `search_sharepoint` / `search_teams` language model tools, via Microsoft Graph `/search/query` (Bearer token, short-lived, no OAuth refresh flow). |
+| `knowledge/blockerText.ts`, `blockerRoutes.ts`, `blockerTools.ts` | `find_help` language model tool — routes a **non-code** blocker (access, permissions, environment, tooling, onboarding, "who do I ask?") to a contact / Teams / page / ServiceNow item from a local, org-curated directory. No network, no credentials. |
 | `util/globMatch.ts` | (privacy) glob helper, also reused for path exclusion. |
 
 Pure logic used by unit tests (classifier, language detector, glob matching,
@@ -191,7 +192,7 @@ time-savings heuristics, and multi-device credit sync state. A parallel
 `companyDashboardPanel.ts` renders aggregate data reported by other devices
 when company-wide reporting is enabled.
 
-## 9. Knowledge tools (Confluence / Jira / GitHub)
+## 9. Knowledge tools (Confluence / Jira / GitHub / Graph / Find-help)
 
 Independent of the usage-tracking DB. Each is a read-only
 `vscode.lm.registerTool` implementation registered via
@@ -204,6 +205,7 @@ finalized contribution point):
 | `search_jira`, `get_jira_issue` | Jira Cloud REST API | Same Atlassian email + API token as Confluence |
 | `search_github` | GitHub REST/code search API | Personal access token, `Authorization: Bearer`, optionally scoped by `usageLogger.githubOrg` |
 | `search_sharepoint`, `search_teams` | Microsoft Graph `/search/query` (`entityTypes: ["driveItem"]` / `["chatMessage"]`) | Microsoft Graph access token (delegated), `Authorization: Bearer` — short-lived (~1h), no refresh flow; user re-runs the set-token command periodically |
+| `find_help` | Local JSON "blocker directory" (inline setting, a file path, or a bundled sample) | None — no network, no credentials |
 
 Security posture (applies to all three): HTTPS-only (`httpJson.ts` refuses
 `http://`), 5MB response cap, 10s default timeout, tokens stored in
@@ -212,6 +214,17 @@ operations only, and results are bounded by the underlying service's own
 permissions (no privilege escalation). The SharePoint/Teams tools share a
 single Graph token the same way Confluence/Jira share one Atlassian token,
 via the shared `httpPostJson` helper (Graph search is POST, not GET).
+
+`find_help` is the exception to the network posture: it makes **no** outbound
+calls at all. It matches the free-text blocker against a local directory
+(`blockerText.ts`, pure/unit-tested scoring), loaded by `blockerRoutes.ts`
+from `usageLogger.blockerDirectory` (inline), then
+`usageLogger.blockerDirectoryPath` (a JSON file, absolute or workspace-relative
+so a team can commit it), falling back to the bundled
+`media/blocker-directory.sample.json`. `parseBlockerDirectory` drops any link
+whose scheme isn't in an allowlist (`https`/`http`/`msteams`/`mailto`), so a
+malicious directory can't smuggle a `javascript:`/`file:` link into a rendered
+suggestion.
 
 ## 10. Configuration surface (`contributes.configuration`)
 
@@ -222,15 +235,15 @@ Key settings (see `package.json` for authoritative list/defaults):
 `reportingEndpointUrl`, `reportingIntervalMinutes`, `reportingTransport`,
 `allowInsecureHttp`, `mongoDatabase`, `mongoCollection`,
 `confluenceBaseUrl`, `confluenceEmail`, `atlassianEmail`, `jiraBaseUrl`,
-`githubOrg`.
+`githubOrg`, `blockerDirectoryPath`, `blockerDirectory`.
 
 Commands (Command Palette, prefix `Copilot Usage:`): Open Dashboard, Open
 Company-Wide Dashboard, Rescan Chat History, Purge All Logged Data, Send
 Company-Wide Report Now, Set/Clear Reporting API Key, Set/Clear MongoDB
 Connection String, Toggle Private Mode, Export Audit CSV, Sync Actual
 Credits Used This Month, Set/Clear Confluence API Token, Test Confluence
-Connection, Test Jira Connection, Set/Clear GitHub Token, Setup (guided
-walkthrough entry point).
+Connection, Test Jira Connection, Set/Clear GitHub Token, Open Help
+Directory, Setup (guided walkthrough entry point).
 
 ## 11. Security posture (OWASP-relevant)
 

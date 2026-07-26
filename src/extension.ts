@@ -12,6 +12,7 @@ import { registerConfluenceIntegration } from './knowledge/confluenceTools';
 import { registerGithubIntegration } from './knowledge/githubTools';
 import { registerGraphIntegration } from './knowledge/graphTools';
 import { registerJiraIntegration } from './knowledge/jiraTools';
+import { registerBlockerIntegration } from './knowledge/blockerTools';
 import { UsageDb } from './storage/db';
 import { DashboardPanel } from './ui/dashboardPanel';
 import { UsageStatusBar } from './ui/statusBar';
@@ -83,6 +84,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	registerGithubIntegration(context);
 
 	registerGraphIntegration(context);
+
+	registerBlockerIntegration(context, (message) => outputChannel.appendLine(message));
 
 	const reportingService = new ReportingService(context, db, outputChannel);
 	context.subscriptions.push(reportingService);
@@ -163,6 +166,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					{ label: '$(github) Set GitHub token', command: 'usageLogger.setGithubToken' },
 					{ label: '$(organization) Set GitHub org scope', setting: 'usageLogger.githubOrg' },
 					{ label: '$(cloud) Set Microsoft Graph token (SharePoint/Teams)', command: 'usageLogger.setGraphToken' },
+					{ label: '$(question) Open help directory (who to contact)', command: 'usageLogger.openBlockerDirectory' },
 					{ label: '$(database) Set MongoDB connection string', command: 'usageLogger.setMongoConnectionString' }
 				],
 				{ title: 'Copilot Usage Logger — Setup', placeHolder: 'Pick something to configure' }
