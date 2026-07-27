@@ -13,6 +13,7 @@
 \usepackage{fancyhdr}
 \usepackage{titlesec}
 \usepackage{microtype}
+\usepackage{rotating}
 \usepackage[colorlinks=true,linkcolor=lloydsblue,urlcolor=lloydsblue,citecolor=lloydsblue]{hyperref}
 
 \definecolor{lloydsblue}{HTML}{0C3B6E}
@@ -59,9 +60,9 @@
 \maketitle
 \thispagestyle{fancy}
 
-\begin{note}
-\textbf{Audience:} engineers maintaining or extending this extension.
-\end{note}
+% \begin{note}
+% \textbf{Audience:} engineers maintaining or extending this extension.
+% \end{note}
 
 \tableofcontents
 \newpage
@@ -76,6 +77,24 @@ read-only ``knowledge grounding'' chat tools (Confluence, Jira, GitHub,
 SharePoint, Teams) and a local ``who to contact'' skill (\code{find\_help})
 so Copilot chat can cite internal documentation/issues/code and route
 non-code blockers to the right owner.
+
+\section{Features}
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{Usage dashboard}: requests by category, language, model, and day, in a per-user webview.
+  \item \textbf{Cost tracking}: per-request Copilot cost units, monthly burn-rate forecast, daily spend pacing against a configurable budget.
+  \item \textbf{Model-fit heuristic}: flags an expensive model used for routine work (or a lightweight one for something that needed more).
+  \item \textbf{Estimated time savings}: directional per-category estimate.
+  \item \textbf{Status bar indicator}: request count or remaining daily credit budget, amber warning once over pace, lock icon in private mode.
+  \item \textbf{Company-wide reporting (opt-in)}: aggregate-only counts (category/language/model/day, never prompt/response text) shipped to an HTTPS endpoint or MongoDB on a schedule, plus a company-wide aggregate dashboard.
+  \item \textbf{Private mode}: one toggle pauses all logging instantly; nothing is written to the local store.
+  \item \textbf{Path exclusion \& sensitive redaction}: glob-based file exclusion and keyword-based redaction, applied before anything is written.
+  \item \textbf{Configurable retention}: \code{retentionDays} auto-expires old rows.
+  \item \textbf{CSV export}: \code{usageLogger.exportAuditCsv} for audit trails.
+  \item \textbf{Knowledge grounding tools}: read-only Confluence, Jira, GitHub, SharePoint, and Teams search/lookup tools for Copilot chat.
+  \item \textbf{\code{find\_help} skill}: routes non-code blockers (access, permissions, tooling, ``who do I ask'') to a contact/Teams chat/page/ServiceNow item from a local, org-curated directory --- fully offline.
+  \item \textbf{Guided setup walkthrough}: in-editor walkthrough covering tokens, budgets, and the blocker directory.
+\end{itemize}
 
 \section{Why This Exists (Design Constraints)}
 
@@ -103,13 +122,13 @@ Two independent capture paths exist and are deliberately deduplicated:
 
 \section{High-Level Architecture}
 
-\begin{figure}[h!]
+\begin{sidewaysfigure}[p]
   \centering
-  \includegraphics[width=\textwidth]{media/architecture-diagram.png}
+  \includegraphics[width=\textheight]{media/architecture-diagram.png}
   \caption{Data flow from VS Code's chat session files through ingestion to
   storage, UI, optional company-wide reporting, and the independent
-  knowledge-tool layer.}
-\end{figure}
+  knowledge-tool layer (rotated for readability at full page size).}
+\end{sidewaysfigure}
 
 \section{Module Map (\texttt{src/})}
 
@@ -286,7 +305,7 @@ Actual Credits Used This Month, Set/Clear Confluence API Token, Test
 Confluence Connection, Test Jira Connection, Set/Clear GitHub Token, Open
 Help Directory, Setup (guided walkthrough entry point).
 
-\section{Security Posture (OWASP-Relevant)}
+\section{Security Posture}
 
 \begin{itemize}[leftmargin=1.4em]
   \item \textbf{No secrets in settings.json}: API tokens (Confluence/Jira, GitHub, Mongo connection string, reporting API key) live in \code{context.secrets} (VS Code SecretStorage), not workspace/user settings.

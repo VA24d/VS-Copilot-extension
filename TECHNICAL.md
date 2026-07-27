@@ -12,7 +12,23 @@ reporting is explicitly enabled. It also exposes optional read-only
 "knowledge grounding" chat tools (Confluence, Jira, GitHub) so Copilot chat
 can cite internal documentation/issues/code.
 
-## 2. Why this exists (design constraints)
+## 2. Features
+
+- **Usage dashboard**: requests by category, language, model, and day, in a per-user webview.
+- **Cost tracking**: per-request Copilot cost units, monthly burn-rate forecast, daily spend pacing against a configurable budget.
+- **Model-fit heuristic**: flags an expensive model used for routine work (or a lightweight one for something that needed more).
+- **Estimated time savings**: directional per-category estimate.
+- **Status bar indicator**: request count or remaining daily credit budget, amber warning once over pace, lock icon in private mode.
+- **Company-wide reporting (opt-in)**: aggregate-only counts (category/language/model/day, never prompt/response text) shipped to an HTTPS endpoint or MongoDB on a schedule, plus a company-wide aggregate dashboard.
+- **Private mode**: one toggle pauses all logging instantly; nothing is written to the local store.
+- **Path exclusion & sensitive redaction**: glob-based file exclusion and keyword-based redaction, applied before anything is written.
+- **Configurable retention**: `retentionDays` auto-expires old rows.
+- **CSV export**: `usageLogger.exportAuditCsv` for audit trails.
+- **Knowledge grounding tools**: read-only Confluence, Jira, GitHub, SharePoint, and Teams search/lookup tools for Copilot chat.
+- **`find_help` skill**: routes non-code blockers (access, permissions, tooling, "who do I ask") to a contact/Teams chat/page/ServiceNow item from a local, org-curated directory — fully offline.
+- **Guided setup walkthrough**: in-editor walkthrough covering tokens, budgets, and the blocker directory.
+
+## 3. Why this exists (design constraints)
 
 There is no public VS Code API to observe requests sent to the built-in
 `@copilot` participant — chat participants only see turns explicitly
@@ -32,7 +48,7 @@ Two independent capture paths exist and are deliberately deduplicated:
   chat, so the ingestor skips entries whose `agent.id` matches the
   extension's own participant id to avoid double-counting.
 
-## 3. High-level architecture
+## 4. High-level architecture
 
 ![Architecture diagram](media/architecture-diagram.png)
 
@@ -69,7 +85,7 @@ Regenerate the PNG after editing the `.mmd` source:
 npx @mermaid-js/mermaid-cli -i media/architecture-diagram.mmd -o media/architecture-diagram.png -b white -s 3
 ```
 
-## 4. Module map (`src/`)
+## 5. Module map (`src/`)
 
 Grouped by subsystem — see the source tree for individual file names.
 
@@ -94,7 +110,7 @@ model fit, time savings, and all `*Text.ts` knowledge-tool formatters) is
 kept in files with no `vscode` import, since vitest cannot import the
 `vscode` module. Vscode-coupled orchestration stays in adjacent files.
 
-## 5. Storage schema (sql.js / SQLite)
+## 6. Storage schema (sql.js / SQLite)
 
 ```sql
 CREATE TABLE requests (
@@ -137,7 +153,7 @@ in-memory-first WASM SQLite — the DB is `export()`ed to bytes and written to
 disk on a debounced idle timer and in `deactivate()`; rows written between
 flushes can be lost on a crash (accepted trade-off, no WAL).
 
-## 6. Data flow (single request, passive path)
+## 7. Data flow (single request, passive path)
 
 1. User sends a Copilot Chat message → VS Code writes/updates a
    `chatSessions/<id>.json` file.
@@ -156,7 +172,7 @@ flushes can be lost on a crash (accepted trade-off, no WAL).
    periodically ships aggregate payloads to the configured HTTPS endpoint or
    MongoDB collection.
 
-## 7. Status bar
+## 8. Status bar
 
 `ui/statusBar.ts` shows, per `usageLogger.statusBarDisplay`:
 - `"requests"` (default): today's request count, `$(copilot) {n} today`.
@@ -173,7 +189,7 @@ The setting is read live in `refresh()` (no cached field), and
 `extension.ts`'s `onDidChangeConfiguration` listener calls `statusBar.refresh()`
 on change so toggling it takes effect immediately, no reload required.
 
-## 8. Dashboard webview
+## 9. Dashboard webview
 
 `ui/dashboardPanel.ts` hosts a `WebviewPanel` with inline HTML/CSS/JS (no
 charting library — hand-built SVG). `postData()` sends: counts by
@@ -184,7 +200,7 @@ time-savings heuristics, and multi-device credit sync state. A parallel
 `companyDashboardPanel.ts` renders aggregate data reported by other devices
 when company-wide reporting is enabled.
 
-## 9. Knowledge tools (Confluence / Jira / GitHub / Graph / Find-help)
+## 10. Knowledge tools (Confluence / Jira / GitHub / Graph / Find-help)
 
 Independent of the usage-tracking DB. Each is a read-only
 `vscode.lm.registerTool` implementation registered via
@@ -218,7 +234,7 @@ whose scheme isn't in an allowlist (`https`/`http`/`msteams`/`mailto`), so a
 malicious directory can't smuggle a `javascript:`/`file:` link into a rendered
 suggestion.
 
-## 10. Configuration surface (`contributes.configuration`)
+## 11. Configuration surface (`contributes.configuration`)
 
 Key settings (see `package.json` for authoritative list/defaults):
 `enablePassiveCapture`, `retentionDays`, `privateMode`, `excludedPathGlobs`,
@@ -237,7 +253,7 @@ Credits Used This Month, Set/Clear Confluence API Token, Test Confluence
 Connection, Test Jira Connection, Set/Clear GitHub Token, Open Help
 Directory, Setup (guided walkthrough entry point).
 
-## 11. Security posture (OWASP-relevant)
+## 12. Security posture
 
 - **No secrets in settings.json**: API tokens (Confluence/Jira, GitHub, Mongo
   connection string, reporting API key) live in `context.secrets`
@@ -263,8 +279,12 @@ Directory, Setup (guided walkthrough entry point).
   can change; parsers catch and skip malformed entries per-request rather
   than throwing, and track `schema_version_seen`/error counts for
   diagnosis.
+- **No security logging/monitoring gap**: `parse_error_count`/`last_error`
+  per file in `ingestion_state`, plus the output channel log, give an
+  operator a way to notice silent parse failures instead of data quietly
+  going missing.
 
-## 12. Build, test, and release
+## 13. Build, test, and release
 
 - Type-check: `npx tsc --noEmit`
 - Unit tests: `npx vitest run` (currently 65 tests across 9 files; only
@@ -282,7 +302,7 @@ Directory, Setup (guided walkthrough entry point).
   "CI" and "Release" workflows build/test and attach the `.vsix` to a GitHub
   Release.
 
-## 13. Known limitations / deferred scope
+## 14. Known limitations / deferred scope
 
 - No public VS Code/GitHub API exposes org-level Copilot premium-request
   quota to third-party extensions; only per-request `copilotCredits` is

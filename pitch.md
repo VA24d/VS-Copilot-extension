@@ -127,7 +127,7 @@ The features that make this safe to roll out at Lloyds scale — not just a pers
 
 ## ⚙️ How it works
 
-![width:1050px](media/architecture-diagram.png)
+![width:1100px](media/architecture-diagram.png)
 
 One watcher, one local database, two independent capture paths — the knowledge tools (including `#findHelp`) sit alongside it, never touching the usage data.
 
