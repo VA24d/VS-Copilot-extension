@@ -1,0 +1,40 @@
+flowchart LR
+    subgraph SRC["Source of truth"]
+        CSF["VS Code chat session files<br/>workspaceStorage/*/chatSessions/*.json<br/>+ globalStorage/emptyWindowChatSessions/*.jsonl"]
+    end
+
+    CSF -->|"chokidar watch, debounced"| FW["watcher/fileWatcher.ts"]
+    FW --> ING["ingest/ingestor.ts"]
+    CSF -->|"one-time backfill"| SCAN["ingest/initialScan.ts"]
+    SCAN --> ING
+    PART["'@usage' chat participant<br/>participant/usageChatParticipant.ts"] --> ING
+
+    ING --> PARSE["parser/sessionParser.ts<br/>parser/patchLogParser.ts"]
+    ING --> CLASS["classify/classifier.ts"]
+    ING --> LANG["language/languageDetector.ts"]
+    ING --> PRIV["privacy/globMatch.ts<br/>privacy/sensitiveLabels.ts"]
+    ING --> DB[("storage/db.ts<br/>sql.js SQLite")]
+
+    DB --> SB["ui/statusBar.ts"]
+    DB --> DASH["ui/dashboardPanel.ts<br/>webview"]
+    DB --> REPORT["reporting/reportingService.ts"]
+    REPORT -->|"opt-in, aggregate only"| MONGO[("MongoDB")]
+    REPORT -->|"opt-in, aggregate only"| HTTPEP["HTTPS endpoint"]
+
+    subgraph KNOWLEDGE["knowledge/* language model tools (independent of DB)"]
+        CONF["Confluence / Jira / GitHub<br/>SharePoint / Teams (Graph)"]
+        HELP["find_help<br/>local directory, no network"]
+    end
+    KNOWLEDGE -.-> VSLM["vscode.lm chat tools"]
+
+    classDef src fill:#eef3fb,stroke:#2a5aa8,color:#12233f;
+    classDef proc fill:#ffffff,stroke:#5b6b85,color:#12233f;
+    classDef store fill:#dff0e6,stroke:#1f7a4d,color:#0e3320;
+    classDef opt fill:#fff3d6,stroke:#b8860b,color:#4a3600;
+    classDef know fill:#f1e9fb,stroke:#6b3fa0,color:#2b0f47;
+
+    class CSF src;
+    class FW,ING,SCAN,PART,PARSE,CLASS,LANG,PRIV proc;
+    class DB,MONGO store;
+    class REPORT,HTTPEP opt;
+    class KNOWLEDGE,CONF,HELP,VSLM know;

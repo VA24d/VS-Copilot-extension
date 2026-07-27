@@ -1,6 +1,6 @@
 # Technical Document — Copilot Usage Logger
 
-Version: 0.8.0
+Version: 0.11.0
 Audience: engineers maintaining or extending this extension.
 
 ## 1. Purpose
@@ -34,6 +34,11 @@ Two independent capture paths exist and are deliberately deduplicated:
 
 ## 3. High-level architecture
 
+![Architecture diagram](media/architecture-diagram.png)
+
+<details>
+<summary>Mermaid source (media/architecture-diagram.mmd)</summary>
+
 ```mermaid
 flowchart LR
     subgraph Source of truth
@@ -54,46 +59,35 @@ flowchart LR
     DB --> REPORT[reporting/reportingService.ts]
     REPORT -->|opt-in| MONGO[(MongoDB)]
     REPORT -->|opt-in| HTTP[HTTPS endpoint]
-    KNOW["knowledge/* language model tools<br/>Confluence / Jira / GitHub"] -.->|independent of DB| VSLM[vscode.lm chat tools]
+    KNOW["knowledge/* language model tools<br/>Confluence / Jira / GitHub / SharePoint / Teams / find_help"] -.->|independent of DB| VSLM[vscode.lm chat tools]
+```
+
+</details>
+
+Regenerate the PNG after editing the `.mmd` source:
+```
+npx @mermaid-js/mermaid-cli -i media/architecture-diagram.mmd -o media/architecture-diagram.png -b white -s 3
 ```
 
 ## 4. Module map (`src/`)
 
-| Module | Responsibility |
+Grouped by subsystem — see the source tree for individual file names.
+
+| Subsystem | Responsibility |
 |---|---|
-| `extension.ts` | `activate()`/`deactivate()`; wires every module below, registers commands, config-change listeners. |
-| `discovery/locateUserDataDir.ts` | Derives `<user-data-dir>/User` from `context.globalStorageUri` — portable, no OS-specific hardcoding. |
-| `discovery/sessionFileIndex.ts` | Globs `workspaceStorage/<hash>/chatSessions/*.{json,jsonl}` and `globalStorage/emptyWindowChatSessions/*.jsonl`; both roots are discovered, backfilled, and watched. |
-| `watcher/fileWatcher.ts` | chokidar watch on both the workspace-scoped and empty-window roots (`watchChatSessionFiles` / `watchEmptyWindowChatSessionFiles`), `awaitWriteFinish` debounce against partial writes. |
-| `parser/types.ts` | Loose types reflecting the undocumented, evolving VS Code schema. |
-| `parser/sessionParser.ts` | Defensive parser for the workspace snapshot format; never throws. |
-| `parser/patchLogParser.ts` | Replays `kind:0` (snapshot) + `kind:1` (keyPath patch) events for the empty-window `.jsonl` format. |
-| `classify/categories.ts`, `classify/classifier.ts` | Keyword/regex scoring of prompt text + slash command into a category (code-gen, debug/fix, explain, refactor, test, docs, git/terminal, search/navigate, other). Falls back to `"other"`. Category is stored as free text, not a SQL enum, so the keyword table can be retuned without a migration. |
-| `language/extensionMap.ts`, `language/languageDetector.ts` | Detects primary language: attached file extensions first, then fenced code-block language tags in the response, else `"unknown"`. |
-| `privacy/globMatch.ts` | Glob matching for `usageLogger.excludedPathGlobs` — matching requests are skipped entirely (not even metadata logged). |
-| `privacy/sensitiveLabels.ts` | Keyword-based redaction/labeling support (`usageLogger.sensitiveLabelKeywords`). |
-| `storage/schema.ts` | DDL + `PRAGMA user_version` migrations. |
-| `storage/db.ts` | sql.js init/load/export/flush; idempotent `insertRequest`; all aggregate queries (counts, credits, group-bys, `creditsByModel`, `creditsByDay`). |
-| `ingest/ingestor.ts` | parse → privacy filter → classify → detect language → upsert → advance per-file cursor. Owns the passive/participant dedup rule. |
-| `ingest/initialScan.ts` | One-time backfill on activation, wrapped in `withProgress`. |
-| `participant/usageChatParticipant.ts` | `@usage` chat participant, `/stats` slash command, logs with `source='participant'`. |
-| `ui/statusBar.ts` | `StatusBarItem`, refreshed after each ingest batch; today's request count or (per `usageLogger.statusBarDisplay`) remaining daily credit budget; amber warning once over budget; private-mode lock icon. |
-| `ui/dashboardPanel.ts` | Per-user `WebviewPanel`, `postMessage`-driven aggregate data (by category/language/model/day, cost-unit breakdown, burn-rate forecast). |
-| `reporting/reportingService.ts` | Optional company-wide reporting scheduler (interval-based). |
-| `reporting/reporter.ts`, `mongoReporter.ts`, `payload.ts` | Transport implementations (HTTPS endpoint or MongoDB) and payload shaping; `usageLogger.allowInsecureHttp` gates plaintext HTTP (HTTPS required by default). |
-| `reporting/companyAggregate.ts`, `companyDashboardPanel.ts` | Aggregate-view dashboard across reported company-wide data. |
-| `reporting/creditsSync.ts` | Multi-device credit reconciliation — lets a user manually enter the real Copilot Business/Enterprise "used" total to fold in usage from other devices (stored in `context.globalState`, resets monthly). |
-| `reporting/deviceId.ts` | Stable per-machine device identifier for company-wide reports. |
-| `heuristics/modelFit.ts`, `heuristics/timeSavings.ts` | Dashboard heuristics: model-fit suggestions, estimated time savings per category. |
-| `export/csvExport.ts` | `usageLogger.exportAuditCsv` — CSV export of logged requests for audit. |
-| `knowledge/httpJson.ts` | Shared HTTPS-only, size-capped (5MB), timeout-bounded (10s default) JSON GET helper used by all knowledge clients. |
-| `knowledge/atlassianAuth.ts` | Shared Basic-auth (email + API token) builder for Confluence and Jira — one Atlassian API token authenticates both. |
-| `knowledge/confluenceClient.ts`, `confluenceText.ts`, `confluenceTools.ts` | `search_confluence` / `get_confluence_page` language model tools. |
-| `knowledge/jiraClient.ts`, `jiraText.ts`, `jiraTools.ts` | `search_jira` / `get_jira_issue` language model tools. |
-| `knowledge/githubClient.ts`, `githubText.ts`, `githubTools.ts` | `search_github` language model tool (PAT-based, `Authorization: Bearer`). |
-| `knowledge/graphText.ts`, `graphClient.ts`, `graphTools.ts` | `search_sharepoint` / `search_teams` language model tools, via Microsoft Graph `/search/query` (Bearer token, short-lived, no OAuth refresh flow). |
-| `knowledge/blockerText.ts`, `blockerRoutes.ts`, `blockerTools.ts` | `find_help` language model tool — routes a **non-code** blocker (access, permissions, environment, tooling, onboarding, "who do I ask?") to a contact / Teams / page / ServiceNow item from a local, org-curated directory. No network, no credentials. |
-| `util/globMatch.ts` | (privacy) glob helper, also reused for path exclusion. |
+| `extension.ts` | Activation entry point: wires every subsystem below, registers commands and config-change listeners. |
+| `discovery/`, `watcher/` | Locates both chat-log roots (workspace-scoped and global empty-window) and watches them with chokidar (`awaitWriteFinish` debounce). |
+| `parser/` | Defensive parsers for both undocumented VS Code chat-log formats (workspace snapshot, empty-window patch-log); never throw. |
+| `classify/`, `language/` | Buckets each request into a category (debug, refactor, test, docs, …) and detects its primary language. |
+| `privacy/` | Path-glob exclusion and sensitive-keyword redaction — applied before anything is written. |
+| `storage/` | sql.js SQLite schema/migrations, idempotent inserts, all aggregate queries. |
+| `ingest/` | Ties parse → privacy filter → classify → store together; per-file cursors plus a one-time backfill scan. |
+| `participant/` | `@usage` chat participant (`/stats` slash command). |
+| `ui/` | Status bar item and the dashboard webview. |
+| `reporting/` | Optional opt-in company-wide aggregate reporting: HTTPS/MongoDB transport, device id, multi-device credit sync. |
+| `heuristics/` | Dashboard heuristics — model-fit suggestions, estimated time saved per category. |
+| `export/` | CSV export of logged requests for audit. |
+| `knowledge/` | Read-only language model tools: Confluence, Jira, GitHub, SharePoint/Teams (Graph), and `find_help` (fully local). |
 
 Pure logic used by unit tests (classifier, language detector, glob matching,
 model fit, time savings, and all `*Text.ts` knowledge-tool formatters) is
@@ -121,9 +115,7 @@ CREATE TABLE requests (
   created_at INTEGER,
   UNIQUE(session_id, request_id, source)
 );
-CREATE INDEX idx_requests_timestamp ON requests(timestamp);
-CREATE INDEX idx_requests_category ON requests(category);
-CREATE INDEX idx_requests_language ON requests(language);
+-- indexes on timestamp, category, language
 
 CREATE TABLE ingestion_state (
   file_path TEXT PRIMARY KEY,
